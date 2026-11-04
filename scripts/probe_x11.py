@@ -12,6 +12,7 @@ from clipo.application.controller import Controller
 from clipo.config.settings import Settings
 from clipo.models.item import HistoryQuery
 from clipo.storage.repository import HistoryRepository
+from clipo.clipboard.mime import native_mime_data
 
 
 def producer():
@@ -23,11 +24,11 @@ def producer():
         value.fill(QColor("#6754d9"))
         clipboard.setImage(value)
     def files():
-        mime = QMimeData()
+        mime = native_mime_data()
         mime.setUrls([QUrl.fromLocalFile("/tmp/clipo-probe-file.txt")])
         clipboard.setMimeData(mime)
     def rich():
-        mime = QMimeData()
+        mime = native_mime_data()
         mime.setText("Rich text")
         mime.setHtml("<b>Rich text</b>")
         clipboard.setMimeData(mime)
@@ -77,6 +78,7 @@ def main():
         print("probe: event loop closed", flush=True)
         if child:
             child.communicate(timeout=5)
+            assert child.returncode == 0, "Clipboard producer did not exit cleanly"
         repo = HistoryRepository(root / "data/history.sqlite3")
         page = repo.page(HistoryQuery())
         assert page.total == 5, f"Expected 5 captures, got {page.total}"

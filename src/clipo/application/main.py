@@ -24,10 +24,15 @@ def main(argv=None):
     parser.add_argument("--data-dir", type=Path, help="Use a separate history directory")
     parser.add_argument("--quick", action="store_true", help="Open the quick clipboard popup")
     parser.add_argument("--background", action="store_true", help="Start in the tray when available")
+    parser.add_argument("--self-test", action="store_true", help="Check bundled engines using temporary synthetic data")
     args = parser.parse_args(argv)
+    if args.self_test:
+        from clipo.application.diagnostics import self_test
+        return self_test()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     app = QApplication([sys.argv[0]])
     app.setApplicationName("Clipo")
+    app.setDesktopFileName("com.clipo.Clipo")
     app.setOrganizationName("Clipo")
     app.setApplicationVersion(__version__)
     app.setStyle("Fusion")
@@ -59,7 +64,18 @@ def main(argv=None):
     icon = QIcon(str(Path(__file__).parents[1] / "resources" / "clipo.svg"))
     app.setWindowIcon(icon)
     apply_theme(app, settings.theme)
-    controller = Controller(app, settings, config_path, data_path, icon)
+    password = None
+    if settings.encrypted and settings.persist_history:
+        from clipo.ui.vault_dialog import VaultDialog
+        from PySide6.QtWidgets import QDialog
+        dialog = VaultDialog(data_path / "vault/history.sqlite3")
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return 0
+        password = dialog.password.text()
+        dialog.password.clear()
+        dialog.deleteLater()
+    controller = Controller(app, settings, config_path, data_path, icon, password=password)
+    password = None
     # Give Python regular opportunities to dispatch terminal/process signals.
     heartbeat = QTimer()
     heartbeat.timeout.connect(lambda: None)
@@ -73,7 +89,7 @@ def main(argv=None):
             def read(client=socket):
                 message = bytes(client.readAll())
                 if message == b"quick":
-                    controller.popup.reveal()
+                    controller.reveal_quick()
                 else:
                     Tray.reveal(controller.window)
                 client.disconnectFromServer()
@@ -83,8 +99,10 @@ def main(argv=None):
                 read()
 
     server.newConnection.connect(activate)
+    available = app.primaryScreen().availableGeometry()
+    controller.window.resize(min(1220, available.width() - 40), min(900, available.height() - 60))
     if args.quick:
-        controller.popup.reveal()
+        controller.reveal_quick()
     elif not args.background or not controller.tray:
         controller.window.show()
     result = app.exec()

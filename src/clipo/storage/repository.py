@@ -12,7 +12,7 @@ from clipo.models.item import ClipboardItem, HistoryPage, HistoryQuery
 
 
 class HistoryRepository:
-    def __init__(self, path: Path, memory=False):
+    def __init__(self, path: Path, memory=False, password=None):
         private_directory(path.parent)
         # Create privately before SQLite opens the file (including on first run).
         if not memory:
@@ -20,8 +20,20 @@ class HistoryRepository:
             os.close(fd)
             path.chmod(0o600)
         self.temporary = tempfile.TemporaryDirectory(prefix="clipo-session-") if memory else None
-        self.connection = sqlite3.connect(":memory:" if memory else path, timeout=5)
-        self.connection.row_factory = sqlite3.Row
+        self.vault = None
+        if password and not memory:
+            from clipo.security.vault import open_database, BlobVault
+            fresh = path.stat().st_size == 0
+            self.connection, row_factory = open_database(path, password)
+            try:
+                self.vault = BlobVault(path.parent, password, create=fresh)
+            except Exception:
+                self.connection.close()
+                raise
+        else:
+            self.connection = sqlite3.connect(":memory:" if memory else path, timeout=5)
+            row_factory = sqlite3.Row
+        self.connection.row_factory = row_factory
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA foreign_keys=ON")
         version = self.connection.execute("PRAGMA user_version").fetchone()[0]
@@ -88,6 +100,8 @@ class HistoryRepository:
             self.connection.execute("PRAGMA user_version=4")
             self.connection.execute("CREATE INDEX IF NOT EXISTS items_pin_order ON clipboard_items(is_pinned DESC,id DESC)")
             self.connection.execute("CREATE INDEX IF NOT EXISTS items_usage ON clipboard_items(use_count DESC,id DESC)")
+            self.connection.execute("CREATE INDEX IF NOT EXISTS items_pin_time ON clipboard_items(is_pinned DESC,created_at DESC,id DESC)")
+            self.connection.execute("CREATE INDEX IF NOT EXISTS items_usage_time ON clipboard_items(use_count DESC,created_at DESC,id DESC)")
         self.images = private_directory((Path(self.temporary.name) if self.temporary else path.parent) / "images")
         self._undo = []
 
@@ -119,7 +133,7 @@ class HistoryRepository:
     def prune(self, limit: int) -> None:
         if limit > 0:
             self.connection.execute(
-                "DELETE FROM clipboard_items WHERE id IN (SELECT id FROM clipboard_items WHERE is_pinned=0 ORDER BY id DESC LIMIT -1 OFFSET ?)",
+                "DELETE FROM clipboard_items WHERE id IN (SELECT id FROM clipboard_items WHERE is_pinned=0 ORDER BY created_at DESC,id DESC LIMIT -1 OFFSET ?)",
                 (limit,),
             )
 
@@ -162,7 +176,7 @@ class HistoryRepository:
         # List previews stay small even if an item contains a megabyte of text.
         rows = self.connection.execute(
             "SELECT " + self._columns(True) + " FROM clipboard_items" + where +
-            {"oldest": " ORDER BY id ASC", "frequent": " ORDER BY use_count DESC,id DESC"}.get(query.sort, " ORDER BY is_pinned DESC,id DESC") + " LIMIT ? OFFSET ?",
+            {"oldest": " ORDER BY created_at ASC,id ASC", "frequent": " ORDER BY use_count DESC,created_at DESC,id DESC"}.get(query.sort, " ORDER BY is_pinned DESC,created_at DESC,id DESC") + " LIMIT ? OFFSET ?",
             [*arguments, query.limit, query.offset],
         ).fetchall()
         return HistoryPage(query, tuple(ClipboardItem(**dict(row)) for row in rows), total)
@@ -268,4 +282,13 @@ class HistoryRepository:
         self.connection.close()
         if self.temporary:
             self.temporary.cleanup()
+        self.vault = None
+
+    def read_blob(self, path):
+        path = Path(path)
+        return self.vault.read(path) if self.vault else path.read_bytes()
+
+    def write_blob(self, path, data):
+        from clipo.security.vault import private_write
+        self.vault.write(Path(path), data) if self.vault else private_write(Path(path), data)
 

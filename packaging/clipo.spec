@@ -12,7 +12,7 @@ a = Analysis(
     [str(root / 'src/clipo/__main__.py')],
     pathex=[str(root / 'src')],
     binaries=[],
-    datas=[(str(root / 'src/clipo/resources'), 'clipo/resources')],
+    datas=[(str(root / 'src/clipo/resources'), 'clipo/resources'), (str(root / 'integrations/gnome'), 'clipo/resources/gnome')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

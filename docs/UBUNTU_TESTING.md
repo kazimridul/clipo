@@ -56,9 +56,23 @@ synthetic test content and `clipo --data-dir /tmp/clipo-acceptance`.
       as compositor-wide background access.
 - [ ] Assign `clipo --quick` in desktop keyboard settings and test activation.
 - [ ] Verify text/image/file restoration into native Wayland and XWayland apps.
-- [ ] Do not mark full Wayland capture accepted until a compositor-aware backend
-      is implemented and real cross-app checks pass.
+- [ ] Enable the Clipo GNOME Clipboard Bridge, confirm its connected status, and
+      repeat background cross-app checks on this GNOME version. The automated
+      headless GNOME 49 probe already passes; unsupported compositors remain limited.
 
 Record Ubuntu/desktop/compositor versions, Qt/Python versions, session type, tray
 host, test results, and reproduction steps for failures. Unencrypted storage,
 unimplemented network sharing, and other release gates are listed in ROADMAP.md.
+
+## New 0.3 desktop checks
+
+- [ ] Enable the GNOME bridge, copy while Clipo is hidden, pause/private/lock,
+      disable the bridge, and confirm the heartbeat limitation fallback.
+- [ ] Approve/deny the shortcut portal's actual desktop permission UI and verify
+      hotkey conflict/rebinding, session cleanup, and the manual fallback.
+- [ ] Migrate a disposable history into a vault, restart/unlock, copy and OCR images,
+      lock while dialogs/jobs are open, and restore an authenticated backup.
+- [ ] Create an expiring local link on Wi-Fi, compare the phone's certificate
+      fingerprint, receive text/image once, test expiry/revoke/private mode, and
+      verify firewall-denied behavior. No server should exist before Create.
+- [ ] Run a prolonged mixed-content capture trial and review CPU/memory/disk use.

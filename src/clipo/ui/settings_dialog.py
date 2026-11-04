@@ -56,23 +56,25 @@ class SettingsDialog(QDialog):
         form.addRow("Skip common credential patterns", self.sensitive)
         self.persist = check(settings.persist_history)
         form.addRow("Persist clipboard history", self.persist)
-        note(form, "Turning persistence off starts fresh in-memory history. Disk history is preserved and returns when re-enabled. Temporary image files are removed on exit. Storage is unencrypted.")
+        note(form, "Turning persistence off starts fresh in-memory history. Disk history is preserved. Temporary session image files are removed on exit. " + ("Your persistent vault, images and automatic backups are encrypted." if settings.encrypted else "Storage is unencrypted. Use Library → Encrypt history to migrate it."))
         self.patterns = QPlainTextEdit(settings.excluded_patterns)
         self.patterns.setPlaceholderText("One literal text pattern per line")
         self.patterns.setMaximumHeight(100)
         form.addRow("Excluded text", self.patterns)
         self.apps = QLineEdit(settings.excluded_apps)
         form.addRow("Excluded app globs (comma separated)", self.apps)
-        note(form, "App exclusions use best-effort X11 active-window identity. When identity is unavailable, including Wayland, configured exclusions stop capture. Use private mode for secrets.")
+        note(form, "App exclusions use active-window hints from X11 or the GNOME bridge, not verified clipboard-owner identity. Unknown identity stops captures when exclusions are configured. Use private mode for secrets.")
 
         form = page("Shortcuts")
         self.shortcut = QLineEdit(settings.quick_shortcut)
         form.addRow("Quick clipboard", self.shortcut)
+        self.portal = check(settings.portal_shortcut)
+        form.addRow("Request Wayland desktop shortcut permission", self.portal)
         self.keys = {}
         for name, value in settings.key_bindings.items():
             self.keys[name] = QKeySequenceEdit(QKeySequence(value))
             form.addRow(name.title(), self.keys[name])
-        note(form, "X11: native global binding with conflict reporting.\nWayland: assign ‘clipo --quick’ in desktop keyboard settings.\n\nIn-app: Ctrl+F search, Ctrl+P pin, Delete selected items, Ctrl+Q quit.")
+        note(form, "X11 uses native global binding. On Wayland, enable the desktop portal request above and approve it in your desktop's permission dialog. If unsupported, assign ‘clipo --quick’ manually. Other bindings work inside Clipo.")
 
         form = page("OCR")
         self.ocr_language = QLineEdit(settings.ocr_language)
@@ -87,7 +89,7 @@ class SettingsDialog(QDialog):
         form.addRow("Automatic backup interval", self.backup_hours)
         self.backup_directory = QLineEdit(settings.backup_directory)
         form.addRow("Backup directory (absolute path)", self.backup_directory)
-        note(form, "JSON backups include text and images and stay local and unencrypted. The latest seven automatic backups are kept. Disabled for session-only history. Use Library in the main window for manual import/export.")
+        note(form, "JSON backups include text and images and stay local. Encrypted vaults create authenticated .clipo automatic backups; other histories create unencrypted JSON. Latest seven retained. Manual plaintext exports remain available explicitly. Disabled for session-only history.")
 
         form = page("Startup")
         self.autostart = check(settings.autostart)

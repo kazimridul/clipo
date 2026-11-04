@@ -1,0 +1,27 @@
+{
+  "records": 50000,
+  "encrypted": true,
+  "insert_seconds": 50.99,
+  "queries": {
+    "recent_page": {
+      "median_ms": 2.35,
+      "matches": 50000,
+      "returned": 100
+    },
+    "deep_page": {
+      "median_ms": 4.49,
+      "matches": 50000,
+      "returned": 100
+    },
+    "specific_substring": {
+      "median_ms": 6.84,
+      "matches": 1,
+      "returned": 1
+    },
+    "common_word": {
+      "median_ms": 1190.67,
+      "matches": 50000,
+      "returned": 100
+    }
+  }
+}

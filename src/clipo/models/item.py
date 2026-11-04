@@ -1,5 +1,5 @@
 """Immutable values passed between the GUI and storage worker."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -41,4 +41,5 @@ class HistoryPage:
     query: HistoryQuery
     items: tuple[ClipboardItem, ...]
     total: int
+    thumbnails: dict[int, bytes] = field(default_factory=dict)
 

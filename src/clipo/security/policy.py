@@ -11,7 +11,8 @@ SENSITIVE = re.compile(
 
 
 def excluded_text(text, block_sensitive=True, patterns=""):
-    if block_sensitive and SENSITIVE.search(text):
+    from clipo.services.recognition import card_like
+    if block_sensitive and (SENSITIVE.search(text) or card_like(text.strip())):
         return True
     # One literal per line. No user-supplied regular expression can freeze capture.
     return any(pattern.casefold() in text.casefold() for pattern in patterns.splitlines() if pattern.strip())

@@ -1,27 +1,28 @@
-# Roadmap and acceptance status
+# Delivery and acceptance status
 
-The original roadmap remains the target. Implemented features and test evidence
-are distinguished from complete product acceptance; unverified requirements are
-not marked complete.
+Version 0.3.0 closes the major software gaps identified in 0.2.0. Delivered code
+and automated integration evidence are distinguished from physical/manual acceptance.
+The original full requirements remain in PRODUCT_REQUIREMENTS.md.
 
-| Phase | Implemented | Remaining acceptance / scope |
+| Phase | Delivered | Integration coverage / later scope |
 | --- | --- | --- |
-| 1 — Foundation | Modular Qt app, SQLite, text capture/restore, lifecycle and persistence | Real cross-process X11 passes; GNOME/Wayland background adapter still required |
-| 2 — Core history | Images/thumbnails, rich text/file references, search, favorites, pins, editing, multi-delete/undo, tags, colored/pinned collections | Broader file-manager/desktop interoperability and long-running reliability checks |
-| 3 — Desktop UX | Three-panel UI, themes, quick popup, tray, native X11 quick hotkey, configurable in-app bindings, desktop activation and autostart | Automatic Wayland portal shortcut integration; GNOME/KDE tray, scaling, accessibility acceptance |
-| 4 — Advanced tools | Offline QR with PNG/SVG/copy/print/split/history, local OCR workers/languages, snippets/descriptions/highlighting, recognition, JSON tools | Physical-phone scanning, printer testing, more content detectors/optional code and SQL formatters |
-| 5 — Privacy/performance | Pattern/app exclusions with explicit limits, private/pause/session-only mode, age/count cleanup, FTS5, worker isolation, portable/manual/scheduled backups, 50k-record benchmark | Optional encrypted database/images; verified clipboard-owner attribution; broad stress/resource testing |
-| 6 — Distribution | Standalone bundle, Debian installer, portable AppImage, launcher/icon/metadata/licenses/checksums, Ubuntu 24.04 container and CI workflow | Physical-desktop AppImage/FUSE, login/tray and upgrade acceptance across supported Ubuntu releases; other architectures |
-| 7 — Future sharing | Runtime is local-only; no sync service or network upload enabled | Android/device pairing, consent UI, local-network/remote sharing, encryption and expiry remain future modules |
+| 1 — Foundation | Modular Qt lifecycle, SQLite, exact capture/restore, migrations | X11 and GNOME Wayland background probes pass |
+| 2 — Core history | Text/HTML/images/files, thumbnails, favorites/pins, editing, undo, tags, colored/pinned collections | Broader file-manager interoperability and endurance checks remain manual |
+| 3 — Desktop UX | Three panels, small-screen scrolling, themes, quick popup, tray, configurable keys, X11 hotkey, opt-in Wayland portal, startup | Portal protocol tested with private D-Bus; actual desktop permission dialogs, tray/login/scaling need manual acceptance |
+| 4 — Advanced tools | QR copy/export/print/split/history, OCR/languages, snippets/highlighting, Python/SQL/JSON formatting, content hints | Real OCR and QR decoding pass; physical phone scans/printers still need manual checks |
+| 5 — Privacy/performance | SQLCipher vault, authenticated encrypted blobs/backups, lock/unlock, verified migration, privacy/exclusions, FTS5, 50k benchmark | Wrong-password/tamper/metadata-loss/stale-callback checks pass; app attribution remains a documented active-window hint; not an independent security audit |
+| 6 — Distribution | Ubuntu 24.04 standalone/deb/AppImage, metadata/licenses/checksums, packaged-engine diagnostics, CI | Container tests validate installation/startup/removal/data preservation; physical FUSE/login/tray and other architectures remain acceptance work |
+| 7 — Optional sharing | Explicit, expiring, one-use TLS LAN text/image transfer with phone QR, consent and revocation | Loopback TLS tests pass. Persistent pairing, native Android app, cloud sharing and automatic multi-device synchronization remain future extensions |
 
-## Release gate
+## Compatibility scope
 
-Version 0.2.0 is a feature release candidate, not a claim of complete CopyQ parity
-or completion of all seven phases. The largest remaining functional gap is full
-GNOME/Wayland background capture. Optional storage encryption and cross-device
-sharing are also unimplemented. The UI reports Wayland restrictions explicitly.
+GNOME's optional extension is required for full background capture on GNOME Wayland;
+it must be enabled by the user. The real compositor probe runs GNOME 49; other
+declared GNOME versions (45–50) need acceptance. Unsupported Wayland compositors
+retain explicit limitation reporting. There is no claim of universal compositor
+support, complete CopyQ parity, or that hardware/manual checks have been executed.
 
-The Ubuntu 24.04 container verifies source tests, real X11 clipboard events,
-packaging, actual Debian installation, frozen-app startup/shutdown, removal, and
-preservation of a user-data marker. It does not replace a real GNOME desktop,
-physical phone/printer, or a long-running daily-use trial.
+No percentage is used as a release gate. Automated tests, real X11/GNOME probes,
+installed-binary diagnostics and package checks are the evidence. Daily-use trials,
+physical phone/printer checks and broader desktop/accessibility acceptance remain
+necessary before calling the application production-certified.

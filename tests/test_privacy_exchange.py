@@ -142,3 +142,18 @@ def test_worker_session_switch_expiration_and_scheduled_backup(tmp_path):
     assert worker.repository.page(HistoryQuery()).total == 0
     assert not errors
     worker.close()
+
+
+def test_import_retention_and_sort_use_original_timestamps(tmp_path):
+    repository = HistoryRepository(tmp_path / "history.sqlite3")
+    repository.add("current", 100)
+    path = tmp_path / "older-backup.json"
+    export_history(repository, path)
+    data = json.loads(path.read_text())
+    template = data["items"][0]
+    data["items"] = [dict(template, content_text="older", created_at="2000-01-01T00:00:00+00:00"), dict(template, content_text="middle", created_at="2020-01-01T00:00:00+00:00")]
+    path.write_text(json.dumps(data))
+    import_history(repository, path, history_limit=2)
+    assert [item.content_text for item in repository.page(HistoryQuery()).items] == ["current", "middle"]
+    assert [item.content_text for item in repository.page(HistoryQuery(sort="oldest")).items] == ["middle", "current"]
+    repository.close()

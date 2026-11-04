@@ -13,7 +13,8 @@ def apply_theme(app, preference: str):
     )
     app.setStyleSheet(f"""
         QWidget {{ font-family: 'Inter', 'Noto Sans', 'DejaVu Sans'; font-size: 13px; color: {text}; }}
-        QMainWindow, QDialog {{ background: {bg}; }}
+        QMainWindow, QDialog, QWidget#body {{ background: {bg}; }}
+        QScrollArea {{ border: 0; background: transparent; }}
         QFrame#sidebar {{ background: {panel}; border-right: 1px solid {line}; }}
         QLabel#brand {{ font-size: 25px; font-weight: 700; }}
         QLabel#heading {{ font-size: 24px; font-weight: 700; }}

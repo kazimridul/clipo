@@ -64,3 +64,14 @@ builds an Ubuntu 24.04 Debian artifact; it has not been pushed or run remotely h
 AppStream metadata is validated explicitly with `--no-net` when `appstreamcli`
 is available; appimagetool's additional network-based validation is disabled.
 This keeps packaging offline after the pinned tools have been obtained.
+
+## Version 0.3 engines and bridge
+
+The frozen bundle includes SQLCipher, authenticated blob/backup encryption,
+Python/SQL formatters, D-Bus bridge/portal code, and optional local TLS sharing.
+`clipo --self-test` exercises the bundled engines using temporary synthetic data
+without accessing the clipboard or opening network endpoints. This check is run
+after installing the Debian artifact. Debian also ships the optional production
+GNOME extension under `/usr/share/gnome-shell/extensions/clipo@clipo.local`; enabling
+it is a separate user action. AppImage embeds a copy for the Library installer.
+The test-producer extension is never included in frozen or Debian output.

@@ -61,7 +61,7 @@ def export_history(repository, target, format="json", query=None, selected=None)
                         path = Path(item.image_path)
                         if not path.is_relative_to(repository.images):
                             raise ValueError("Image reference is outside managed storage")
-                        data["image_base64"] = base64.b64encode(path.read_bytes()).decode()
+                        data["image_base64"] = base64.b64encode(repository.read_blob(path)).decode()
                     if count:
                         stream.write(",")
                     json.dump(data, stream, ensure_ascii=False)
@@ -86,12 +86,18 @@ def export_history(repository, target, format="json", query=None, selected=None)
     return count
 
 
-def validate_backup(path):
+def validate_backup(path, password=None):
     path = Path(path)
     if path.stat().st_size > MAX_BACKUP:
         raise ValueError("Backup exceeds 128 MiB")
+    raw = path.read_bytes()
+    from clipo.security.vault import BACKUP_MAGIC, decrypt_backup
+    if raw.startswith(BACKUP_MAGIC):
+        if password is None:
+            raise ValueError("An encrypted backup requires its passphrase")
+        raw = decrypt_backup(raw, password)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeError):
         raise ValueError("This is not a valid Clipo JSON backup") from None
     if not isinstance(data, dict) or data.get("clipo_backup") != 1 or not isinstance(data.get("items"), list) or len(data["items"]) > 100000:
@@ -114,7 +120,7 @@ def validate_backup(path):
             if not isinstance(value, str) or len(value.encode()) > 16 * 1024 * 1024:
                 raise ValueError("Invalid item text in backup")
             clean[key] = value
-        if clean["content_type"] not in ("text", "image", "url", "email", "ip", "uuid", "files", "snippet"):
+        if clean["content_type"] not in ("text", "image", "url", "email", "ip", "uuid", "phone", "credit_card", "files", "snippet"):
             raise ValueError("Unsupported clipboard type in backup")
         if len(clean["title"]) > 300 or len(clean["description"]) > 4000 or len(clean["language"]) > 100:
             raise ValueError("Oversized item title, description, or language")
@@ -151,8 +157,8 @@ def validate_backup(path):
     return validated, categories
 
 
-def import_history(repository, path, history_limit=0):
-    records, categories = validate_backup(path)
+def import_history(repository, path, history_limit=0, password=None):
+    records, categories = validate_backup(path, password)
     created_files = []
     try:
         with repository.connection:
@@ -165,10 +171,8 @@ def import_history(repository, path, history_limit=0):
                 if raw is not None:
                     image_path = repository.images / (hashlib.sha256(raw).hexdigest() + ".png")
                     if not image_path.exists():
-                        fd = os.open(image_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                         created_files.append(image_path)
-                        with os.fdopen(fd, "wb") as stream:
-                            stream.write(raw)
+                        repository.write_blob(image_path, raw)
                     data["image_path"] = str(image_path)
                 data["content_hash"] = hashlib.sha256((data["content_type"] + data["content_text"]).encode() + (raw or b"")).hexdigest()
                 data["updated_at"] = data["created_at"]
@@ -183,4 +187,22 @@ def import_history(repository, path, history_limit=0):
         for file in created_files:
             file.unlink(missing_ok=True)
         raise
+    return len(records)
+
+
+def export_encrypted(repository, target, password, query=None, selected=None):
+    from clipo.security.vault import encrypt_backup, private_write
+    records, total = [], 0
+    for item in items(repository, query, selected):
+        data = asdict(item)
+        data.pop("id")
+        data.pop("image_path")
+        if item.image_path:
+            data["image_base64"] = base64.b64encode(repository.read_blob(item.image_path)).decode()
+        total += len(json.dumps(data, ensure_ascii=False).encode())
+        if total > MAX_BACKUP - 4096:
+            raise ValueError("Encrypted backup exceeds 128 MiB. Export a smaller selection.")
+        records.append(data)
+    raw = json.dumps({"clipo_backup": 1, "collections": repository.collections_list(), "items": records}, ensure_ascii=False).encode()
+    private_write(Path(target), encrypt_backup(raw, password))
     return len(records)

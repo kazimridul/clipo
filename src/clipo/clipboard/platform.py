@@ -14,7 +14,7 @@ def capability(qt_platform: str) -> ClipboardCapability:
     if qt_platform in ("offscreen", "minimal"):
         return ClipboardCapability(False, "Test display · clipboard access is limited to this process.")
     if "wayland" in qt_platform or wayland:
-        return ClipboardCapability(False, "Wayland · background capture is limited. This version records only clipboard events Qt delivers; use an Ubuntu on Xorg session for background capture.")
+        return ClipboardCapability(False, "Wayland · enable the optional Clipo GNOME Clipboard Bridge for background capture (Library → Install bridge). Without a supported bridge, only events Qt delivers can be recorded.")
     if qt_platform == "xcb":
         return ClipboardCapability(True, "X11 · background clipboard monitoring available")
     return ClipboardCapability(False, "Unverified display backend · background capture is not guaranteed.")

@@ -72,5 +72,26 @@ also clears generated QR history/files; independent manual exports remain extern
 
 Session-only mode uses SQLite in memory and a private temporary image directory.
 Switching modes reopens the appropriate repository; old disk data is preserved.
-No encryption or network synchronization is claimed. GNOME/Wayland data-control
-integration remains a separate release requirement, not a QClipboard assumption.
+Encryption, the opt-in GNOME bridge, and explicit LAN transfer are implemented
+through the additional modules below; automatic network synchronization is disabled.
+
+## Version 0.3 additions
+
+`security/vault.py` opens SQLCipher connections only after validating the codec;
+SQLite temporary storage stays in memory. `HistoryRepository.read_blob/write_blob`
+abstract AES-GCM image/thumbnail/QR storage. GUI thumbnails cross the worker signal
+as decoded bytes when a vault is active, never as decrypted temporary files. OCR
+receives an in-memory image pipe on stdin. Portable encrypted backups are assembled
+and authenticated in memory. Migration publishes a verified staging vault before
+settings/deletion acknowledgement; lock invalidates GUI generations and clears keys.
+
+`clipboard/gnome_bridge.py` exposes a user-session D-Bus sink and recording gate;
+the optional GNOME extension emits actual owner-change data. Bridge availability
+has a heartbeat timeout, and no OS-wide capability is inferred from QClipboard.
+`system/portal.py` manages shortcut permission requests and session cleanup on its
+own asyncio/D-Bus thread. Portal permission belongs to the desktop, not the app.
+
+`services/sharing.py` is an explicit, one-use TLS LAN service with a random bearer
+link and expiration. ShareDialog creates nothing until the user clicks Create.
+There is no automatic sharing, cloud synchronization, or native Android client.
+See SECURITY.md and WAYLAND.md for protocol scope and acceptance evidence.

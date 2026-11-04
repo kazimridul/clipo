@@ -34,6 +34,8 @@ class Settings:
     autostart: bool = False
     backup_hours: int = 0
     backup_directory: str = ""
+    encrypted: bool = False
+    portal_shortcut: bool = False
     key_bindings: dict[str, str] = field(default_factory=lambda: {"search": "Ctrl+F", "quit": "Ctrl+Q", "pin": "Ctrl+P", "delete": "Delete", "private": "Ctrl+Shift+P", "pause": "Ctrl+Shift+Space", "qr": "Ctrl+Shift+Q"})
 
     @classmethod
@@ -57,7 +59,7 @@ class Settings:
         import re
         if type(result.auto_ocr) is not bool or not isinstance(result.ocr_language, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*", result.ocr_language):
             raise ValueError("Invalid OCR settings")
-        if any(type(getattr(result, key)) is not bool for key in ("block_sensitive", "persist_history", "autostart")):
+        if any(type(getattr(result, key)) is not bool for key in ("block_sensitive", "persist_history", "autostart", "encrypted", "portal_shortcut")):
             raise ValueError("Invalid privacy or integration setting")
         if any(not isinstance(getattr(result, key), str) or len(getattr(result, key)) > 10000 for key in ("excluded_patterns", "excluded_apps")):
             raise ValueError("Invalid exclusion patterns")

@@ -16,10 +16,14 @@ jobs:
         run: python -m pip install -e '.[test,build]'
       - name: Tests
         run: QT_QPA_PLATFORM=offscreen python -m pytest -q
+      - name: Source engine diagnostics
+        run: clipo --self-test
       - name: Real cross-process X11 probe
         run: xvfb-run -a env -u WAYLAND_DISPLAY QT_QPA_PLATFORM=xcb XDG_SESSION_TYPE=x11 CLIPO_ISOLATED_DISPLAY=1 python scripts/probe_x11.py
       - name: Build Ubuntu 24.04 Debian package
         run: python scripts/package_linux.py
+      - name: Frozen engine diagnostics
+        run: dist/clipo/clipo --self-test
       - uses: actions/upload-artifact@v4
         with:
           name: clipo-ubuntu-24.04

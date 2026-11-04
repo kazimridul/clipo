@@ -6,7 +6,7 @@ from PySide6.QtGui import QKeySequence, QShortcut, QIcon
 from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QVBoxLayout, QWidget,
-    QComboBox, QMenu, QToolButton, QAbstractItemView, QDateEdit,
+    QComboBox, QMenu, QToolButton, QAbstractItemView, QDateEdit, QScrollArea,
 )
 
 from clipo.models.item import HistoryQuery
@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
     def __init__(self, platform_message: str):
         super().__init__()
         self.setWindowTitle("Clipo — your clipboard, remembered")
-        self.resize(1220, 790)
+        self.resize(1220, 900)
         self.setMinimumSize(850, 570)
         self.hide_to_tray = False
         self.offset = 0
@@ -84,12 +84,25 @@ class MainWindow(QMainWindow):
         foot.setObjectName("eyebrow")
         nav.addSpacing(14)
         nav.addWidget(foot)
-        outer.addWidget(sidebar)
+        sidebar_scroll = QScrollArea()
+        sidebar_scroll.setWidgetResizable(True)
+        sidebar_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sidebar_scroll.setFixedWidth(202)
+        sidebar_scroll.setWidget(sidebar)
+        outer.addWidget(sidebar_scroll)
 
-        body = QVBoxLayout()
+        body_widget = QWidget()
+        body_widget.setObjectName("body")
+        body = QVBoxLayout(body_widget)
         body.setContentsMargins(27, 27, 27, 16)
         body.setSpacing(16)
-        outer.addLayout(body, 1)
+        body_scroll = QScrollArea()
+        body_scroll.setWidgetResizable(True)
+        body_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        body_scroll.setWidget(body_widget)
+        outer.addWidget(body_scroll, 1)
         header = QHBoxLayout()
         titles = QVBoxLayout()
         self.heading = QLabel("Clipboard history")
@@ -110,6 +123,9 @@ class MainWindow(QMainWindow):
         for title, action in (("New text / snippet", "new_item"), ("QR from entered text", "manual_qr"), ("Export complete history", "export_all"), ("Export current filter / collection", "export_view"), ("Export selected items", "export_selected"), ("Import JSON backup", "import")):
             library_menu.addAction(title, lambda checked=False, value=action: self.operation_requested.emit(value, None))
         library.setMenu(library_menu)
+        library_menu.addAction("Install GNOME Wayland bridge", lambda: self.operation_requested.emit("install_bridge", None))
+        for title, action in (("Encrypt history…", "encrypt"), ("Lock vault", "lock"), ("Unlock vault", "unlock")):
+            library_menu.addAction(title, lambda checked=False, value=action: self.operation_requested.emit(value, None))
         header.addWidget(library)
         body.addLayout(header)
         self.notice = QLabel(platform_message)
@@ -230,6 +246,8 @@ class MainWindow(QMainWindow):
             self.item_actions[action] = self.action_menu.addAction(title, lambda checked=False, value=action: self.operate_selected(value))
         for title, action in (("Generate QR", "qr"), ("Extract text (OCR)", "ocr"), ("Save as code snippet", "snippet"), ("Pretty-print JSON", "json_pretty"), ("Minify JSON", "json_minify"), ("Open link / compose email", "open_url")):
             self.item_actions[action] = self.action_menu.addAction(title, lambda checked=False, value=action: self.operate_selected(value))
+        self.item_actions["format_code"] = self.action_menu.addAction("Format code", lambda: self.operate_selected("format_code"))
+        self.item_actions["share"] = self.action_menu.addAction("Share once over local network", lambda: self.operate_selected("share"))
         tools.setMenu(self.action_menu)
         detail_layout.addWidget(tools)
         self.copy_button.setEnabled(False)
@@ -368,7 +386,13 @@ class MainWindow(QMainWindow):
             if item.image_path:
                 from pathlib import Path
                 path = Path(item.image_path)
-                entry.setIcon(QIcon(str(path.parent / "thumbnails" / path.name)))
+                if item.id in page.thumbnails:
+                    from PySide6.QtGui import QPixmap
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(page.thumbnails[item.id])
+                    entry.setIcon(QIcon(pixmap))
+                else:
+                    entry.setIcon(QIcon(str(path.parent / "thumbnails" / path.name)))
             entry.setData(Qt.ItemDataRole.UserRole, item.id)
             self.items.addItem(entry)
             if item.id == previous:
@@ -414,6 +438,7 @@ class MainWindow(QMainWindow):
             self.item_actions[action].setEnabled(item.content_text.strip().startswith(("{", "[")))
         self.item_actions["open_url"].setEnabled(item.content_type in ("url", "email"))
         self.item_actions["qr"].setEnabled(bool(item.ocr_text) if item.content_type == "image" else bool(item.content_text))
+        self.item_actions["format_code"].setEnabled(item.language.casefold() in ("python", "sql", "json"))
         # Keep painting responsive with large payloads; restore always uses full storage text.
         self.preview.setPlainText(item.content_text[:50000])
         self.highlighter.set_language(item.language)

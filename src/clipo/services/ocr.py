@@ -31,3 +31,17 @@ def extract_text(path, language="eng"):
     if len(result.stdout.encode()) > 8 * 1024 * 1024:
         raise ValueError("OCR output exceeded 8 MiB")
     return result.stdout.strip()
+
+
+def extract_bytes(data, language="eng"):
+    if not shutil.which("tesseract"):
+        raise ValueError("OCR needs Tesseract and installed language packs")
+    if not re.fullmatch(r"[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*", language):
+        raise ValueError("Invalid OCR language")
+    try:
+        result = subprocess.run(["tesseract", "stdin", "stdout", "-l", language], input=data, capture_output=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        raise ValueError("OCR timed out after 60 seconds") from None
+    if result.returncode or len(result.stdout) > 8 * 1024 * 1024:
+        raise ValueError("OCR failed. Check language packs and image size.")
+    return result.stdout.decode("utf-8").strip()

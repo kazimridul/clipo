@@ -2,6 +2,7 @@
 """Reproducible indexed search/pagination measurement on 50,000 synthetic records."""
 from pathlib import Path
 import json
+import argparse
 import tempfile
 import time
 from clipo.storage.repository import HistoryRepository
@@ -9,8 +10,11 @@ from clipo.models.item import HistoryQuery
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--encrypted", action="store_true")
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="clipo-benchmark-") as folder:
-        repo = HistoryRepository(Path(folder) / "history.sqlite3")
+        repo = HistoryRepository(Path(folder) / "history.sqlite3", password="Temporary benchmark passphrase" if args.encrypted else None)
         started = time.perf_counter()
         with repo.connection:
             repo.connection.executemany(
@@ -26,7 +30,7 @@ def main():
                 result = repo.page(query)
                 samples.append((time.perf_counter() - before) * 1000)
             timings[title] = {"median_ms": round(sorted(samples)[2], 2), "matches": result.total, "returned": len(result.items)}
-        print(json.dumps({"records": 50000, "insert_seconds": round(insertion, 2), "queries": timings}, indent=2))
+        print(json.dumps({"records": 50000, "encrypted": args.encrypted, "insert_seconds": round(insertion, 2), "queries": timings}, indent=2))
         repo.close()
 
 

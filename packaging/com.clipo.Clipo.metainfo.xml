@@ -11,5 +11,5 @@
   <content_rating type="oars-1.1"/>
   <provides><binary>clipo</binary></provides>
   <categories><category>Utility</category></categories>
-  <releases><release version="0.2.0" date="2026-11-04"/></releases>
+  <releases><release version="0.3.0" date="2026-11-04"/><release version="0.2.0" date="2026-11-04"/></releases>
 </component>

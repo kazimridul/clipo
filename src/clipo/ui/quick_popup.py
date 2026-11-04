@@ -67,7 +67,13 @@ class QuickPopup(QDialog):
             if item.image_path:
                 from pathlib import Path
                 path = Path(item.image_path)
-                entry.setIcon(QIcon(str(path.parent / "thumbnails" / path.name)))
+                if item.id in page.thumbnails:
+                    from PySide6.QtGui import QPixmap
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(page.thumbnails[item.id])
+                    entry.setIcon(QIcon(pixmap))
+                else:
+                    entry.setIcon(QIcon(str(path.parent / "thumbnails" / path.name)))
             entry.setData(Qt.ItemDataRole.UserRole, item.id)
             self.items.addItem(entry)
         self.items.setCurrentRow(0)

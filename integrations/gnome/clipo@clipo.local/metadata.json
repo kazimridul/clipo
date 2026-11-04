@@ -1,0 +1,8 @@
+{
+  "uuid": "clipo@clipo.local",
+  "name": "Clipo Clipboard Bridge",
+  "description": "Opt-in local clipboard events for Clipo on GNOME Wayland. Does not upload data or persist history in GNOME Shell.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "version": 1,
+  "url": "https://github.com/kazimridul/clipo"
+}

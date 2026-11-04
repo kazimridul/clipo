@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clipo"
-version = "0.2.0"
+version = "0.3.0"
 description = "A private, native Linux clipboard manager"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["PySide6>=6.8,<7", "Pillow>=11,<13", "qrcode>=8,<9", "python-xlib>=0.33,<1", "Pygments>=2.18,<3"]
+dependencies = ["PySide6>=6.8,<7", "Pillow>=11,<13", "qrcode>=8,<9", "python-xlib>=0.33,<1", "Pygments>=2.18,<3", "sqlcipher3>=0.6.4,<0.7", "cryptography>=44,<49", "black>=25,<27", "sqlparse>=0.5,<1", "dbus-next>=0.2.3,<0.3"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "pytest-qt>=4.4,<5", "zxing-cpp>=2.3,<4"]
@@ -22,6 +22,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 clipo = ["resources/*.svg", "resources/*.png"]
+
+[tool.setuptools.data-files]
+"share/clipo/gnome/clipo@clipo.local" = ["integrations/gnome/clipo@clipo.local/extension.js", "integrations/gnome/clipo@clipo.local/metadata.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

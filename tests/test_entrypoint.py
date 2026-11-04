@@ -49,7 +49,7 @@ def test_desktop_launcher_install_remove_preserves_history(tmp_path):
     script = root / "scripts/install_desktop.py"
     result = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    desktop = tmp_path / "applications/clipo.desktop"
+    desktop = tmp_path / "applications/com.clipo.Clipo.desktop"
     assert f'Exec="{root}/.venv/bin/clipo"' in desktop.read_text()
     history = tmp_path / "clipo/history.sqlite3"
     history.parent.mkdir()
@@ -58,3 +58,20 @@ def test_desktop_launcher_install_remove_preserves_history(tmp_path):
     assert removed.returncode == 0
     assert not desktop.exists()
     assert history.read_text() == "preserved"
+
+
+def test_custom_clipboard_mime_survives_clean_process_exit():
+    # The last MIME owner must be destroyed safely after interpreter finalization.
+    script = '''
+from PySide6.QtWidgets import QApplication
+from clipo.clipboard.monitor import ClipboardMonitor
+from clipo.models.item import ClipboardItem
+app = QApplication([])
+monitor = ClipboardMonitor(app.clipboard(), 1024)
+monitor.restore_payload(ClipboardItem(1, 'rich text', 'hash', '', content_html='<b>rich text</b>'))
+assert app.clipboard().mimeData().html() == '<b>rich text</b>'
+monitor.restore_payload(ClipboardItem(2, 'file:///tmp/test.txt', 'hash2', '', content_type='files', file_metadata='["file:///tmp/test.txt"]'))
+assert app.clipboard().mimeData().urls()[0].toLocalFile() == '/tmp/test.txt'
+'''
+    result = subprocess.run([sys.executable, "-c", script], env={**os.environ, "QT_QPA_PLATFORM": "offscreen"}, capture_output=True, text=True, timeout=8)
+    assert result.returncode == 0, result.stderr

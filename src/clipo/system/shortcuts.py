@@ -24,11 +24,19 @@ class GlobalShortcut(QObject):
         super().__init__(parent)
         self.display = None
         self.notifier = None
+        self.portal = None
 
-    def bind(self, shortcut, platform):
+    def bind(self, shortcut, platform, use_portal=False):
         self.close()
         key, mask = parse_shortcut(shortcut)
         if platform != "xcb" or os.environ.get("XDG_SESSION_TYPE") == "wayland" or os.environ.get("WAYLAND_DISPLAY"):
+            if use_portal and platform not in ("offscreen", "minimal"):
+                from clipo.system.portal import PortalShortcut
+                self.portal = PortalShortcut(shortcut, self)
+                self.portal.activated.connect(self.activated)
+                self.portal.status.connect(self.status)
+                self.portal.start()
+                return
             self.status.emit("Global shortcut: configure your desktop to run ‘clipo --quick’. In-app shortcut is available.")
             return
         try:
@@ -63,6 +71,10 @@ class GlobalShortcut(QObject):
                 self.activated.emit()
 
     def close(self):
+        if self.portal:
+            self.portal.close()
+            self.portal.deleteLater()
+            self.portal = None
         if self.notifier:
             self.notifier.setEnabled(False)
             self.notifier.deleteLater()

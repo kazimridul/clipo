@@ -20,9 +20,10 @@ def main():
     args = parser.parse_args()
     xdg = Path(os.environ.get("XDG_DATA_HOME", ""))
     data = xdg if xdg.is_absolute() else Path.home() / ".local/share"
-    target = data / "applications" / "clipo.desktop"
+    target = data / "applications" / "com.clipo.Clipo.desktop"
     if args.uninstall:
         target.unlink(missing_ok=True)
+        (target.parent / "clipo.desktop").unlink(missing_ok=True)
         print("Clipo launcher removed. History and settings preserved.")
         return
     root = Path(__file__).resolve().parents[1]

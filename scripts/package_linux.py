@@ -35,7 +35,7 @@ def minimum_glibc(bundle):
 def licenses(bundle):
     target = bundle / "licenses"
     target.mkdir(exist_ok=True)
-    for package in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "Pillow", "qrcode", "python-xlib", "six", "Pygments", "pyinstaller"):
+    for package in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "Pillow", "qrcode", "python-xlib", "six", "Pygments", "pyinstaller", "sqlcipher3", "cryptography", "black", "sqlparse", "dbus-next"):
         distribution = importlib.metadata.distribution(package)
         for entry in distribution.files or []:
             if entry.name.lower().startswith(("license", "copying", "notice")):
@@ -76,6 +76,7 @@ def main():
     shutil.copyfile(ROOT / "packaging/clipo.desktop", stage / "usr/share/applications/com.clipo.Clipo.desktop")
     shutil.copyfile(ROOT / "src/clipo/resources/clipo.svg", stage / "usr/share/icons/hicolor/scalable/apps/clipo.svg")
     shutil.copyfile(ROOT / "packaging/com.clipo.Clipo.metainfo.xml", stage / "usr/share/metainfo/com.clipo.Clipo.metainfo.xml")
+    shutil.copytree(ROOT / "integrations/gnome/clipo@clipo.local", stage / "usr/share/gnome-shell/extensions/clipo@clipo.local")
     installed_kib = sum(file.stat().st_size for file in bundle.rglob("*") if file.is_file() and not file.is_symlink()) // 1024
     (stage / "DEBIAN/control").write_text(
         f"Package: clipo\nVersion: {__version__}\nArchitecture: {architecture}\nMaintainer: Clipo contributors <clipo@localhost>\n"

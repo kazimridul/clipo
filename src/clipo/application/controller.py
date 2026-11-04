@@ -17,11 +17,15 @@ from clipo.ui.window import MainWindow
 class Controller(QObject):
     command = Signal(str, object)
 
-    def __init__(self, app, settings, config_path, data_path, icon):
+    def __init__(self, app, settings, config_path, data_path, icon, password=None):
         super().__init__()
         self.app = app
         self.settings = settings
         self.config_path = config_path
+        self.data_path = data_path
+        self.locked = False
+        self.history_epoch = 0
+        self.closed = False
         from clipo.services.jobs import JobRunner
         self.jobs = JobRunner(self)
         self.capability = capability(app.platformName())
@@ -31,14 +35,19 @@ class Controller(QObject):
         from clipo.system.shortcuts import GlobalShortcut
         self.popup = QuickPopup(self.window)
         self.shortcuts = GlobalShortcut(self)
-        self.shortcuts.activated.connect(self.popup.reveal)
+        self.shortcuts.activated.connect(self.reveal_quick)
         self.shortcuts.status.connect(self.window.statusBar().showMessage)
-        self.quick_key = QShortcut(QKeySequence(settings.quick_shortcut), self.window, activated=self.popup.reveal)
+        self.quick_key = QShortcut(QKeySequence(settings.quick_shortcut), self.window, activated=self.reveal_quick)
         self.window.setWindowIcon(icon)
         self.monitor = ClipboardMonitor(app.clipboard(), settings.max_text_bytes)
         self.monitor.policy = settings
+        from clipo.clipboard.gnome_bridge import GnomeBridge
+        self.bridge = GnomeBridge(self.monitor, self)
+        self.bridge.payload.connect(lambda payload: self.command.emit("payload", payload))
+        self.bridge.error.connect(self.on_error)
+        self.bridge.status.connect(self.bridge_status)
         self.thread = QThread(self)
-        self.worker = HistoryWorker(data_path / "history.sqlite3", settings.history_limit, settings.max_text_bytes, settings)
+        self.worker = HistoryWorker(data_path / "history.sqlite3", settings.history_limit, settings.max_text_bytes, settings, password)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.initialize)
         self.thread.finished.connect(self.worker.deleteLater)
@@ -49,6 +58,10 @@ class Controller(QObject):
         self.worker.item_ready.connect(self.on_item)
         self.worker.error.connect(self.on_error)
         self.worker.notice.connect(self.on_notice)
+        self.worker.encryption_ready.connect(self.encryption_ready)
+        self.worker.encryption_failed.connect(self.encryption_failed)
+        self.worker.ocr_input.connect(self.ocr_bytes)
+        self.worker.share_input.connect(self.open_share)
         self.worker.image_ready.connect(self.on_image)
         self.worker.collections_ready.connect(self.window.show_collections)
         self.worker.image_stored.connect(self.auto_ocr)
@@ -79,7 +92,7 @@ class Controller(QObject):
         self.window.private_button.setChecked(settings.private)
         self.monitor.set_private(settings.private)
         app.aboutToQuit.connect(self.shutdown)
-        app.styleHints().colorSchemeChanged.connect(lambda _: apply_theme(app, self.settings.theme))
+        app.styleHints().colorSchemeChanged.connect(self.theme_changed)
         self.thread.start()
         self.maintenance = QTimer(self)
         self.maintenance.setInterval(60000)
@@ -89,6 +102,10 @@ class Controller(QObject):
 
     @Slot()
     def on_ready(self):
+        self.locked = False
+        self.encrypting = False
+        if hasattr(self, "maintenance"):
+            self.maintenance.start()
         self.monitor.enabled = True
         self.window.refresh()
         self.command.emit("collections", None)
@@ -96,10 +113,12 @@ class Controller(QObject):
         if not self.monitor.private:
             self.command.emit("scheduled_backup", None)
         self.show_state()
-        self.shortcuts.bind(self.settings.quick_shortcut, self.app.platformName())
+        self.shortcuts.bind(self.settings.quick_shortcut, self.app.platformName(), self.settings.portal_shortcut)
 
     @Slot(object, int)
     def on_page(self, page, generation):
+        if self.locked:
+            return
         if generation < 0:
             self.popup.show_page(page, -generation)
         else:
@@ -109,17 +128,29 @@ class Controller(QObject):
     def on_notice(self, message):
         self.window.statusBar().showMessage(message, 8000)
 
+    def theme_changed(self, *_):
+        apply_theme(self.app, self.settings.theme)
+
     @Slot()
     def refresh_collections(self):
         self.command.emit("collections", None)
 
+    @Slot(bool)
+    def bridge_status(self, active):
+        self.monitor.external_active = active
+        self.window.notice.setText("GNOME clipboard bridge connected · background text, image, HTML and file events" if active else self.capability.message)
+        if not self.locked:
+            self.show_state()
+
     def show_state(self):
-        if self.monitor.private:
+        if self.locked:
+            status = "Encrypted history · locked"
+        elif self.monitor.private:
             status = "Private mode · recording is off"
         elif self.monitor.paused:
             status = "Capture paused"
-        elif self.capability.background_supported:
-            status = "Monitoring clipboard · text history"
+        elif self.capability.background_supported or self.monitor.external_active:
+            status = "Monitoring clipboard · text and images"
         else:
             status = "Limited clipboard access · see desktop notice above"
         self.window.statusBar().showMessage(status)
@@ -135,12 +166,19 @@ class Controller(QObject):
         self.show_state()
 
     def private(self, value):
+        if value:
+            from clipo.ui.share_dialog import ShareDialog
+            for widget in self.app.topLevelWidgets():
+                if isinstance(widget, ShareDialog):
+                    widget.reject()
         self.monitor.set_private(value)
         self.settings.private = value
         self.save_settings()
         self.show_state()
 
     def on_item(self, item, purpose):
+        if self.locked:
+            return
         if item is None:
             self.window.statusBar().showMessage("This item no longer exists.", 5000)
         elif purpose == "restore":
@@ -180,6 +218,11 @@ class Controller(QObject):
                 self.command.emit("edit", (item.id, text, item.title, "JSON", item.description))
             except ValueError as error:
                 self.on_error(str(error))
+        elif purpose == "format_code":
+            from clipo.services.recognition import format_code
+            epoch = self.history_epoch
+            self.jobs.submit(lambda: format_code(item.content_text, item.language),
+                lambda text: self.command.emit("edit", (item.id, text, item.title, item.language, item.description)) if not self.locked and epoch == self.history_epoch else None, self.on_error)
         elif purpose == "open_url":
             from PySide6.QtCore import QUrl
             from PySide6.QtGui import QDesktopServices
@@ -193,6 +236,8 @@ class Controller(QObject):
             self.window.show_preview(item)
 
     def on_image(self, item, image, purpose):
+        if self.locked:
+            return
         if purpose == "restore":
             try:
                 self.monitor.restore_payload(item, image)
@@ -206,6 +251,17 @@ class Controller(QObject):
             self.window.show_image(item, image)
 
     def operation(self, action, item_id):
+        if self.locked:
+            if action == "unlock":
+                from clipo.ui.vault_dialog import VaultDialog
+                dialog = VaultDialog(self.data_path / "vault/history.sqlite3", self.window)
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self.command.emit("unlock", dialog.password.text())
+                dialog.password.clear()
+                dialog.deleteLater()
+            else:
+                self.on_error("History is locked. Choose Library → Unlock vault.")
+            return
         if action in ("favorite", "pin"):
             self.command.emit("flag", (item_id, "is_favorite" if action == "favorite" else "is_pinned"))
         elif action == "undo":
@@ -214,6 +270,47 @@ class Controller(QObject):
             self.popup.reveal()
         elif action == "manual_qr":
             self.open_qr()
+        elif action == "install_bridge":
+            from clipo.system.gnome import install_bridge
+            self.jobs.submit(install_bridge, lambda _: QMessageBox.information(self.window, "GNOME bridge installed", "Log out/in if the extension is new, then enable ‘Clipo Clipboard Bridge’ in the Extensions app. Clipo reports when the bridge connects."), self.on_error)
+        elif action == "encrypt":
+            from clipo.ui.vault_dialog import VaultDialog
+            if self.settings.encrypted:
+                self.on_error("History is already encrypted.")
+                return
+            dialog = VaultDialog(parent=self.window, create=True)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.encrypting = True
+                self.monitor.enabled = False
+                self.command.emit("encrypt", (dialog.password.text(), dialog.remove_original.isChecked()))
+                self.on_error("Encrypting history in the background…")
+            dialog.password.clear()
+            dialog.confirm.clear()
+            dialog.deleteLater()
+        elif action == "lock":
+            if not self.settings.encrypted:
+                self.on_error("Enable encrypted history before using vault locking.")
+                return
+            self.locked = True
+            self.maintenance.stop()
+            self.history_epoch += 1
+            self.monitor.enabled = False
+            if self.app.clipboard().ownsClipboard():
+                self.app.clipboard().clear()
+            self.window.items.clear()
+            self.window.preview.clear()
+            self.window.image_preview.clear()
+            self.window.current_item = None
+            self.popup.items.clear()
+            self.popup.search.clear()
+            self.window.search.clear()
+            self.popup.hide()
+            for widget in self.app.topLevelWidgets():
+                if isinstance(widget, QDialog) and widget is not self.popup:
+                    widget.reject()
+            self.command.emit("lock", None)
+            self.window.summary.setText("Encrypted history · locked")
+            self.on_error("Vault locked. Choose Library → Unlock vault.")
         elif action == "new_item":
             from clipo.models.item import ClipboardItem
             from clipo.ui.item_dialog import ItemDialog
@@ -223,10 +320,19 @@ class Controller(QObject):
         elif action.startswith("export_"):
             self.export(action)
         elif action == "import":
-            path, _ = QFileDialog.getOpenFileName(self.window, "Import Clipo backup", "", "Clipo JSON (*.json)")
+            path, _ = QFileDialog.getOpenFileName(self.window, "Import Clipo backup", "", "Clipo backups (*.json *.clipo)")
             if path:
-                self.command.emit("import", path)
-        elif action in ("edit_item", "organize_item", "save_image", "view_image", "qr", "ocr", "snippet", "json_pretty", "json_minify", "open_url"):
+                from pathlib import Path
+                with Path(path).open("rb") as stream:
+                    encrypted = stream.read(8) == b"CLIPOBK1"
+                password = None
+                if encrypted:
+                    from PySide6.QtWidgets import QLineEdit
+                    password, ok = QInputDialog.getText(self.window, "Encrypted backup", "Backup passphrase:", QLineEdit.EchoMode.Password)
+                    if not ok:
+                        return
+                self.command.emit("import", (path, password))
+        elif action in ("edit_item", "organize_item", "save_image", "view_image", "qr", "ocr", "snippet", "json_pretty", "json_minify", "open_url", "format_code", "share"):
             self.command.emit(action, item_id)
         elif action in ("new_collection", "rename_collection", "delete_collection"):
             old = item_id or ""
@@ -258,6 +364,14 @@ class Controller(QObject):
         dialog.generated.connect(lambda data: self.command.emit("qr_record", (item_id, data)) if not self.monitor.private else None)
         dialog.exec()
 
+    @Slot(bytes, str)
+    def open_share(self, data, kind):
+        if not self.locked:
+            from clipo.ui.share_dialog import ShareDialog
+            dialog = ShareDialog(data, kind, self.jobs, self.window)
+            dialog.exec()
+            dialog.deleteLater()
+
     def export(self, scope):
         from clipo.models.item import HistoryQuery
         query, selected = None, None
@@ -268,9 +382,10 @@ class Controller(QObject):
                 return
         elif scope == "export_view":
             query = self.window.history_query()
-        path, chosen = QFileDialog.getSaveFileName(self.window, "Export clipboard history", "clipo-backup.json", "JSON (*.json);;Text (*.txt);;CSV (*.csv);;HTML (*.html)")
+        formats = ("Encrypted JSON (*.clipo);;" if self.settings.encrypted else "") + "JSON (*.json);;Text (*.txt);;CSV (*.csv);;HTML (*.html)"
+        path, chosen = QFileDialog.getSaveFileName(self.window, "Export clipboard history", "clipo-backup.clipo" if self.settings.encrypted else "clipo-backup.json", formats)
         if path:
-            format = {"JSON (*.json)": "json", "Text (*.txt)": "txt", "CSV (*.csv)": "csv", "HTML (*.html)": "html"}[chosen]
+            format = {"Encrypted JSON (*.clipo)": "encrypted", "JSON (*.json)": "json", "Text (*.txt)": "txt", "CSV (*.csv)": "csv", "HTML (*.html)": "html"}[chosen]
             self.command.emit("export", (path, format, query, selected))
 
     def auto_ocr(self, item):
@@ -281,10 +396,22 @@ class Controller(QObject):
         if item.content_type != "image":
             self.on_error("Select an image to extract text.")
             return
-        from clipo.services.ocr import extract_text
+        self.ocr_requests = getattr(self, "ocr_requests", {})
+        self.ocr_requests[item.id] = automatic
+        self.command.emit("ocr_data", item.id)
+
+    @Slot(object, bytes)
+    def ocr_bytes(self, item, data):
+        if self.locked:
+            return
+        automatic = getattr(self, "ocr_requests", {}).pop(item.id, False)
+        from clipo.services.ocr import extract_bytes
         self.window.statusBar().showMessage("Extracting text in the background…")
         language = self.settings.ocr_language
+        epoch = self.history_epoch
         def complete(text):
+            if self.locked or epoch != self.history_epoch:
+                return
             if automatic and (self.monitor.private or self.monitor.paused):
                 return
             self.command.emit("ocr_result", (item.id, text))
@@ -295,10 +422,28 @@ class Controller(QObject):
                 dialog.qr_requested.connect(lambda value: self.open_qr(value))
                 dialog.exec()
             self.window.statusBar().showMessage("Text extraction finished.", 5000)
-        self.jobs.submit(lambda: extract_text(item.image_path, language), complete, self.on_error)
+        self.jobs.submit(lambda: extract_bytes(data, language), complete, self.on_error)
+
+    @Slot(bool)
+    def encryption_ready(self, remove_original):
+        self.settings.encrypted = True
+        if self.save_settings() and remove_original:
+            self.command.emit("remove_plain", None)
+        self.on_notice("History encrypted. Library contains Lock and Unlock actions.")
+
+    @Slot(str, bool)
+    def encryption_failed(self, message, history_available):
+        self.encrypting = False
+        self.monitor.enabled = history_available and not self.locked
+        self.on_error(message)
 
     def on_error(self, message):
+        if self.locked and message.startswith("History is unavailable"):
+            message = "Vault locked. Choose Library → Unlock vault."
         self.window.statusBar().showMessage(message)
+
+    def reveal_quick(self):
+        self.operation("unlock", None) if self.locked else self.popup.reveal()
 
     def save_settings(self):
         try:
@@ -310,6 +455,12 @@ class Controller(QObject):
             return False
 
     def show_settings(self):
+        if getattr(self, "encrypting", False):
+            self.window.statusBar().showMessage("Encrypting history… wait before changing settings.")
+            return
+        if self.locked:
+            self.on_error("Unlock the vault before changing settings.")
+            return
         dialog = SettingsDialog(self.settings, self.window)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             from clipo.system.shortcuts import parse_shortcut
@@ -323,11 +474,21 @@ class Controller(QObject):
                 retention_days=dialog.retention.value(), max_text_bytes=dialog.max_bytes.value() * 1024, block_sensitive=dialog.sensitive.isChecked(),
                 persist_history=dialog.persist.isChecked(), excluded_patterns=dialog.patterns.toPlainText(), excluded_apps=dialog.apps.text(),
                 auto_ocr=dialog.auto_ocr.isChecked(), ocr_language=dialog.ocr_language.text(), backup_hours=dialog.backup_hours.value(), backup_directory=dialog.backup_directory.text(), autostart=dialog.autostart.isChecked(),
-                key_bindings={name: widget.keySequence().toString() for name, widget in dialog.keys.items()})
+                key_bindings={name: widget.keySequence().toString() for name, widget in dialog.keys.items()}, portal_shortcut=dialog.portal.isChecked())
             sequences = [QKeySequence(value).toString() for value in [candidate.quick_shortcut, *candidate.key_bindings.values()] if value]
             if len(sequences) != len(set(sequences)):
                 self.on_error("Two actions use the same keyboard shortcut. Choose distinct bindings.")
                 return
+            vault_password = None
+            if candidate.encrypted and candidate.persist_history and not self.settings.persist_history:
+                from clipo.ui.vault_dialog import VaultDialog
+                unlock = VaultDialog(self.data_path / "vault/history.sqlite3", self.window)
+                if unlock.exec() != QDialog.DialogCode.Accepted:
+                    unlock.deleteLater()
+                    return
+                vault_password = unlock.password.text()
+                unlock.password.clear()
+                unlock.deleteLater()
             import re
             from pathlib import Path
             if not re.fullmatch(r"[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*", candidate.ocr_language) or (candidate.backup_hours and not Path(candidate.backup_directory).is_absolute()):
@@ -344,16 +505,26 @@ class Controller(QObject):
             for key, value in asdict(candidate).items():
                 setattr(self.settings, key, value)
             self.monitor.max_text_bytes = candidate.max_text_bytes
-            self.command.emit("configure", candidate)
+            self.history_epoch += 1
+            self.command.emit("configure", (candidate, vault_password) if vault_password else candidate)
             apply_theme(self.app, self.settings.theme)
             self.command.emit("limit", self.settings.history_limit)
             self.quick_key.setKey(QKeySequence(self.settings.quick_shortcut))
             self.window.apply_keys(self.settings.key_bindings)
-            self.shortcuts.bind(self.settings.quick_shortcut, self.app.platformName())
+            self.shortcuts.bind(self.settings.quick_shortcut, self.app.platformName(), self.settings.portal_shortcut)
             self.command.emit("cleanup", None)
 
     def shutdown(self):
+        if self.closed:
+            return
+        self.closed = True
+        self.app.styleHints().colorSchemeChanged.disconnect(self.theme_changed)
         self.monitor.enabled = False
+        self.bridge.close()
+        from clipo.ui.share_dialog import ShareDialog
+        for widget in self.app.topLevelWidgets():
+            if isinstance(widget, ShareDialog):
+                widget.reject()
         self.maintenance.stop()
         self.shortcuts.close()
         self.jobs.close()

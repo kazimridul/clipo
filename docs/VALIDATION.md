@@ -1,68 +1,71 @@
-# Validation record
+# Clipo 0.3 validation
 
-Date: 4 November 2026. Release candidate: Clipo 0.2.0.
+Date: 4 November 2026. Tests and integration probes use synthetic data.
 
-| Check | Result |
+| Check | Evidence |
 | --- | --- |
-| Clean Ubuntu 24.04 / Python 3.12 source suite | **56 passed**, including real Tesseract and local activation sockets |
-| Development workspace, Python 3.13 / Qt 6.12 | Tests pass; isolated engine/socket requirements skip explicitly when unavailable |
-| Existing Phase 1 database → schema 4 | Passed, with original text preserved |
-| Images, normalized hashing, private files, deduplication, cleanup and undo | Passed |
-| Favorites, pins, collections/colors, tags, snippet descriptions and FTS maintenance | Passed |
-| Literal search, date boundaries, pagination, exact Unicode/whitespace restoration | Passed |
-| JSON/image/collection backup round trip, invalid-input rejection, HTML/CSV safety | Passed |
-| Pause/private mode, credential rules, session-only switching, retention and backups | Passed |
-| Main-window/worker wiring, popup, GUI-thread job completion, editing-safe Delete key | Passed |
-| QR PNG/SVG generation and independent ZXing decoding | Exact URL/code/Wi-Fi/Bangla/emoji/whitespace payloads passed |
-| QR splitting, oversize, color/contrast and scan-size rejection | Passed |
-| Real Tesseract 5.5 isolated workspace and Ubuntu container engine | Generated screenshot sentence extracted exactly |
-| Real X11 cross-process capture on isolated Xvfb | Text, Unicode, duplicates, URL, image, file URLs, HTML passed |
-| Real X11 image restore and no restore feedback capture | Passed |
-| Native Wayland startup / clean shutdown | Passed with temporary empty data; Qt text-input focus warnings observed |
-| Compositor-wide GNOME/Wayland capture | **Not implemented**; persistent limitation notice is intentional |
-| Ubuntu 24.04 standalone binary | Built; minimum glibc dependency measured as 2.38 |
-| Actual `.deb` install and remove in Ubuntu 24.04 | Passed; `/usr/bin/clipo --version` and frozen startup/shutdown passed; user-data marker preserved |
-| AppImage | Built from Ubuntu 24.04 frozen bundle; final artifact smoke checks recorded below |
-| GitHub workflow | Added; not pushed or remotely run |
-| Physical desktop tray/login, phone scan, printer, upgrades, daily-use trial | Manual acceptance pending |
+| Automated suite, all optional local engines/sockets present | 72 tests; final Ubuntu build result and artifact checks are recorded in RELEASE_MANIFEST.json/build logs |
+| Phase 1 schema migration, exact Unicode/whitespace restore, search/index maintenance | Passed |
+| Image hashing, private permissions, organization/flags, deletion/undo, bounded pages | Passed |
+| JSON/image/collection backup round trips, invalid input, escaped HTML/CSV | Passed |
+| QR PNG/SVG, independent ZXing payload decoding, splitting/limits/contrast | Passed |
+| Real Tesseract screenshot extraction | Passed |
+| Python/SQL/JSON formatting | Passed; comments retained and code never executed |
+| SQLCipher migration, metadata/image/search preservation, plaintext SQLite rejection | Passed |
+| Wrong password, modified blob/backup, missing vault metadata | Rejected explicitly |
+| GUI lock/unlock and stale preview suppression | Passed |
+| Encrypted backup round trip, no plaintext intermediate backup file | Passed |
+| Real X11/Xvfb cross-process clipboard | Text/Unicode, dedupe, URLs, image, file URLs, HTML, image restore and no feedback capture passed |
+| Real headless GNOME 49 Wayland bridge | Background text/Unicode, dedupe, URL, PNG, file URLs, private/resume passed |
+| GNOME extension lifecycle | Loaded ACTIVE in isolated GNOME; temporary settings only |
+| GlobalShortcuts portal wire protocol | Registration, session/binding, activation, denial, request/session cleanup passed on private fake portal |
+| One-time TLS LAN transfer on loopback | Certificate verified; GET reveals no payload; one POST receives it; replay denied; HTML escaped; public/wildcard binding rejected |
+| Installed bundled engines | `clipo --self-test` checks QR, Python/SQL formatter, encrypted DB/FTS, encrypted image and authenticated backup |
+| Small-window rendering | 850×570 inspected with scroll access; light/dark, QR, popup and settings screenshots inspected |
+| Physical phone certificate UX/scans, printer, normal FUSE mount, real login/tray, accessibility/endurance | Manual acceptance still required |
 
-## Performance
-
-`scripts/benchmark.py` creates 50,000 synthetic records with developer notes and
-URLs. `docs/benchmark.json` stores the measured five-sample medians: recent page
-about 0.7 ms, deep page about 2 ms, specific substring about 1 ms, broad common-word
-search about 119 ms. These measurements describe this machine and corpus, not
-all real-world payloads. One/two-character queries still use a scan.
-
-## Isolation
-
-Automated clipboard tests use process-local Qt clipboards, controlled MIME test
-doubles, or an independent Xvfb display. They do not read/overwrite the user's
-desktop clipboard. The native Wayland startup test did not read initial clipboard
-contents. Screenshots use synthetic data in temporary history. Tesseract and Xvfb
-packages used for additional workspace checks were extracted under `/tmp`; they
-were not installed on the host. Container package installation/removal did not
-modify the host application installation.
-
-## Reproduction
+## Reproduce
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
+.venv/bin/clipo --self-test
 .venv/bin/python scripts/benchmark.py
 .venv/bin/python scripts/preview.py
 xvfb-run -a env -u WAYLAND_DISPLAY QT_QPA_PLATFORM=xcb XDG_SESSION_TYPE=x11 CLIPO_ISOLATED_DISPLAY=1 .venv/bin/python scripts/probe_x11.py
+.venv/bin/python scripts/run_wayland_probe.py
 docker build -f packaging/Dockerfile.ubuntu24 -t clipo-build:ubuntu24 .
 ```
 
-See `docs/PACKAGING.md` for artifacts, glibc compatibility, and build-tool pins.
+The full suite requires Tesseract, a D-Bus daemon and local Unix/loopback sockets;
+missing/restricted optional integration requirements skip with explicit reasons.
+The GNOME probe uses its own D-Bus session, headless compositor, temporary XDG
+settings, and a test-only producer extension which is never distributed.
+Portal tests never open the host's permission dialog. TLS tests bind loopback,
+never an external interface. The user's desktop clipboard is not used.
 
-## Final artifact checks
+The recorded 50k-row benchmark is in benchmark.json (about 0.7 ms recent page,
+2 ms deep page, 1 ms specific search, 119 ms broad search on this corpus/machine).
+This is not a universal workload guarantee or an independent security audit.
 
-The final Ubuntu 24.04-based Debian artifact was installed again in a disposable
-container after the metadata/launcher update. The desktop entry exists, version
-reports 0.2.0, frozen startup/shutdown passes, removal succeeds, and the user-data
-marker remains. The final AppImage reports 0.2.0 through its extract-and-run
-fallback, extracts successfully, and its AppRun passes startup, storage,
-SIGTERM shutdown, and lock cleanup checks. Manifest hashes were recomputed and
-matched both exact files. Normal FUSE mounting on a physical desktop remains a
-manual check. AppStream metadata passes `appstreamcli validate --no-net`.
+A focused GUI shutdown probe exposed an interpreter-finalization fault when a
+Python-constructed QMimeData remained owned by Qt's global clipboard. Native Qt
+MIME allocation and the native plain-text path avoid that lifetime trampoline.
+A subprocess regression verifies rich-text/file restoration and clean exit;
+three repeated focused GUI runs and the full suite pass. The native X11 producer
+is also required to exit with status 0.
+
+The encrypted 50k-row benchmark is in benchmark-encrypted.json: about 2.4 ms recent
+page, 4.5 ms deep page, 7 ms specific search, and 1.19 s for a query matching all
+records. It includes encryption/security overhead and runs off the GUI thread.
+
+Migration safeguards also prevent stale queued settings from disabling a new
+vault, and source removal requires successfully reopening the migrated store.
+Backup import retention/sorting uses original timestamps so older imported data
+cannot displace newer live history merely because it was inserted later.
+
+Final release evidence: Ubuntu 24.04 source suite passes 72 tests with engines and
+local sockets enabled; the installed frozen diagnostics report all engines passed.
+The actual 0.2 → 0.3 Debian upgrade preserves Unicode text, pins, tags and
+collections, starts cleanly, and preserves data on removal. Final AppImage hashes,
+engine diagnostics and extracted AppRun startup/shutdown are checked against the
+same Ubuntu-built bundle. Manifest hashes identify the exact downloadable files.

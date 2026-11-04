@@ -17,6 +17,7 @@ class ClipboardMonitor(QObject):
         self.paused = False
         self.private = False
         self.enabled = False
+        self.external_active = False
         self.policy = None
         self._restoring = False
         clipboard.dataChanged.connect(self.capture)
@@ -31,7 +32,7 @@ class ClipboardMonitor(QObject):
 
     @Slot()
     def capture(self):
-        if not self.enabled or self.paused or self.private or self._restoring or self.clipboard.ownsClipboard():
+        if not self.enabled or self.external_active or self.paused or self.private or self._restoring or self.clipboard.ownsClipboard():
             return
         try:
             mime = self.clipboard.mimeData()
@@ -58,7 +59,7 @@ class ClipboardMonitor(QObject):
                 elif not image.isNull():
                     self.payload_captured.emit({"image": image.copy()})
                 return
-            if mime.hasUrls() and any(url.isLocalFile() for url in mime.urls()):
+            if mime.hasUrls() and mime.urls() and all(url.isLocalFile() for url in mime.urls()):
                 urls = [url.toString() for url in mime.urls()]
                 self.payload_captured.emit({"text": "\n".join(urls), "kind": "files", "metadata": json.dumps(urls)})
                 return
@@ -93,15 +94,18 @@ class ClipboardMonitor(QObject):
             self._restoring = False
 
     def restore_payload(self, item, image=None):
-        from PySide6.QtCore import QMimeData, QUrl
+        from PySide6.QtCore import QUrl
         self._restoring = True
         try:
             if item.content_type == "image":
                 if image is None or image.isNull():
                     raise ValueError("Image file is missing or unreadable")
                 self.clipboard.setImage(image)
+            elif not item.content_html and item.content_type != "files":
+                self.clipboard.setText(item.content_text)
             else:
-                mime = QMimeData()
+                from clipo.clipboard.mime import native_mime_data
+                mime = native_mime_data()
                 mime.setText(item.content_text)
                 if item.content_html:
                     mime.setHtml(item.content_html)
