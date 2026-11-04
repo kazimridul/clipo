@@ -1,0 +1,15 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends python3-venv libpython3.12 binutils dpkg-dev ca-certificates libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libdbus-1-3 libfontconfig1 tesseract-ocr tesseract-ocr-eng xvfb xauth && rm -rf /var/lib/apt/lists/*
+WORKDIR /work
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN python3 -m venv /venv && /venv/bin/python -m pip install -e '.[test,build]'
+COPY tests ./tests
+COPY scripts ./scripts
+COPY packaging ./packaging
+RUN QT_QPA_PLATFORM=offscreen /venv/bin/python -m pytest -q
+RUN xvfb-run -a env -u WAYLAND_DISPLAY QT_QPA_PLATFORM=xcb XDG_SESSION_TYPE=x11 CLIPO_ISOLATED_DISPLAY=1 /venv/bin/python scripts/probe_x11.py
+RUN /venv/bin/python scripts/package_linux.py
+RUN mkdir -p /root/.local/share/clipo && printf 'preserve user data' > /root/.local/share/clipo/install-test-marker && apt-get install -y ./dist/clipo_0.2.0_amd64.deb && clipo --version && /venv/bin/python scripts/smoke_binary.py /usr/bin/clipo && apt-get remove -y clipo && test -f /root/.local/share/clipo/install-test-marker
+CMD ["/bin/true"]

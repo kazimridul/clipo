@@ -1,0 +1,33 @@
+"""Worker-only, content-addressed image storage."""
+import hashlib
+import os
+from PySide6.QtCore import QBuffer, QIODevice
+from PySide6.QtGui import QImage
+from PySide6.QtCore import Qt
+from clipo.config.settings import private_directory
+
+
+def store_image(image: QImage, directory):
+    if image.isNull() or image.width() * image.height() > 32_000_000:
+        raise ValueError("Image is empty or exceeds the 32 megapixel limit")
+    image = image.convertToFormat(QImage.Format.Format_RGBA8888)
+    digest = hashlib.sha256(bytes(image.constBits()) + f"{image.width()}x{image.height()}".encode()).hexdigest()
+    path = directory / (digest + ".png")
+    if not path.exists():
+        buffer = QBuffer()
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        if not image.save(buffer, "PNG"):
+            raise ValueError("Image encoding failed")
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(bytes(buffer.data()))
+    thumb = private_directory(directory / "thumbnails") / path.name
+    if not thumb.exists():
+        small = image.scaled(160, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        buffer = QBuffer()
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        small.save(buffer, "PNG")
+        fd = os.open(thumb, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(bytes(buffer.data()))
+    return path, digest

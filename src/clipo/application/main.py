@@ -22,6 +22,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Clipo — local Linux clipboard history")
     parser.add_argument("--version", action="version", version=f"Clipo {__version__}")
     parser.add_argument("--data-dir", type=Path, help="Use a separate history directory")
+    parser.add_argument("--quick", action="store_true", help="Open the quick clipboard popup")
+    parser.add_argument("--background", action="store_true", help="Start in the tray when available")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     app = QApplication([sys.argv[0]])
@@ -42,7 +44,7 @@ def main(argv=None):
         client = QLocalSocket()
         client.connectToServer(socket_name)
         if client.waitForConnected(1000):
-            client.write(b"show")
+            client.write(b"quick" if args.quick else b"show")
             client.waitForBytesWritten(1000)
             client.disconnectFromServer()
             return 0
@@ -68,12 +70,23 @@ def main(argv=None):
     def activate():
         while server.hasPendingConnections():
             socket = server.nextPendingConnection()
-            socket.close()
-            socket.deleteLater()
-        Tray.reveal(controller.window)
+            def read(client=socket):
+                message = bytes(client.readAll())
+                if message == b"quick":
+                    controller.popup.reveal()
+                else:
+                    Tray.reveal(controller.window)
+                client.disconnectFromServer()
+            socket.readyRead.connect(read)
+            socket.disconnected.connect(socket.deleteLater)
+            if socket.bytesAvailable():
+                read()
 
     server.newConnection.connect(activate)
-    controller.window.show()
+    if args.quick:
+        controller.popup.reveal()
+    elif not args.background or not controller.tray:
+        controller.window.show()
     result = app.exec()
     server.close()
     lock.unlock()

@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "build_environment": {
+    "os": "PRETTY_NAME=\"Ubuntu 24.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+  },
+  "minimum_glibc": "2.38",
+  "artifacts": {
+    "clipo_0.2.0_amd64.deb": {
+      "sha256": "2e455c4c285f4af1e3de319a6e7c2500e0c5bea6cbe6acf932d1766f0273e741",
+      "bytes": 54590124
+    },
+    "Clipo-0.2.0-x86_64.AppImage": {
+      "sha256": "2f81047f0d0059ad07a2f8497f3b0e07ee71e2c8a3539d5c627843ec60d85331",
+      "bytes": 70150648
+    }
+  }
+}

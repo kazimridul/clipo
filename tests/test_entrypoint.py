@@ -39,7 +39,13 @@ def test_process_launch_single_instance_and_clean_termination(tmp_path):
 
 def test_desktop_launcher_install_remove_preserves_history(tmp_path):
     env = {**os.environ, "XDG_DATA_HOME": str(tmp_path)}
-    root = Path(__file__).resolve().parents[1]
+    import shutil
+    source = Path(__file__).resolve().parents[1]
+    root = tmp_path / "checkout with spaces"
+    (root / "scripts").mkdir(parents=True)
+    (root / ".venv/bin").mkdir(parents=True)
+    (root / ".venv/bin/clipo").touch()
+    shutil.copyfile(source / "scripts/install_desktop.py", root / "scripts/install_desktop.py")
     script = root / "scripts/install_desktop.py"
     result = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr

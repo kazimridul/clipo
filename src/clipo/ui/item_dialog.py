@@ -1,0 +1,36 @@
+"""Editor shared by text clips, snippets, tags, and collections."""
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QPlainTextEdit, QVBoxLayout, QComboBox
+
+
+class ItemDialog(QDialog):
+    def __init__(self, item, parent=None, organize_only=False):
+        super().__init__(parent)
+        self.setWindowTitle("Organize item" if organize_only else "Edit clipboard item")
+        self.resize(660, 540)
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        self.title = QLineEdit(item.title)
+        self.description = QLineEdit(item.description)
+        self.language = QComboBox()
+        self.language.setEditable(True)
+        self.language.addItems(["", "Python", "Java", "JavaScript", "TypeScript", "C", "C++", "SQL", "Bash", "HTML", "CSS", "JSON", "YAML", "PHP", "Go", "Rust"])
+        self.language.setCurrentText(item.language)
+        self.tags = QLineEdit(item.tags)
+        self.collections = QLineEdit(item.collections)
+        self.title.setMaxLength(300)
+        self.description.setMaxLength(4000)
+        self.tags.setMaxLength(10000)
+        self.collections.setMaxLength(10000)
+        form.addRow("Title", self.title)
+        form.addRow("Description", self.description)
+        form.addRow("Language", self.language)
+        form.addRow("Tags (comma separated)", self.tags)
+        form.addRow("Collections (comma separated)", self.collections)
+        layout.addLayout(form)
+        self.text = QPlainTextEdit(item.content_text)
+        self.text.setReadOnly(organize_only or item.content_type == "image")
+        layout.addWidget(self.text)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)

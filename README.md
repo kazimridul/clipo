@@ -1,131 +1,139 @@
 # Clipo
 
-A native Linux clipboard manager built with Python 3.11+, PySide6 / Qt 6,
-and SQLite. Ubuntu is the primary target.
+A native Linux clipboard manager built with Python, PySide6 / Qt 6, SQLite,
+Pillow, qrcode, Pygments, and optional local Tesseract OCR. Ubuntu comes first.
 
-**Current release: 0.1.0 — Phase 1 implementation.** This is the tested foundation
-for the larger product, not the completed CopyQ-level application. Real Ubuntu
-desktop acceptance testing is still required before a production release.
+**Version 0.2.0 — feature release candidate.** The core functionality from phases
+2–6 is implemented and tested. This is not a declaration that every requirement
+or desktop acceptance check in the full product specification is complete.
+See [phase status and remaining work](docs/ROADMAP.md).
 
-![Clipo light theme](docs/screenshots/clipo-light.png)
+![Clipo](docs/screenshots/clipo-light.png)
 
-## What works now
+## Install on Ubuntu
 
-- Event-driven text capture through Qt's clipboard API.
-- Persistent local SQLite history, with timestamps and consecutive deduplication.
-- Exact text restore (including whitespace, Unicode, and multiline text).
-- Literal substring search, Today filter, and paginated history.
-- Full text preview; large previews are bounded and explicitly labeled.
-- Delete one item or confirm clearing all saved history.
-- Configurable history limit (default 1,000; zero means unlimited).
-- Pause capture and private mode, both preserved across restarts.
-- Password manager exclusion hints for KeePassXC and supported MIME markers.
-- Light, dark, and system appearance; keyboard navigation and Ctrl+F search.
-- Background storage worker; SQLite operations do not run on the UI thread.
-- Tray integration when the desktop supports it. Closing the window then keeps
-  Clipo running; use the tray's Quit action or Ctrl+Q to exit. Without a tray,
-  closing the window quits so the app never becomes inaccessible.
-- Single-instance activation: launching again opens the existing window.
-
-No demonstration clipboard entries are inserted on startup. The screenshot uses
-synthetic example text in a separate temporary database.
-
-## Run on Ubuntu
-
-Ubuntu 24.04+ provides a suitable Python version. On a fresh installation:
+The release artifacts are built from an isolated **Ubuntu 24.04 amd64** environment.
+Python and Qt are bundled; users do not need Python commands to launch the app.
 
 ```bash
-sudo apt update
+sudo apt install ./dist/clipo_0.2.0_amd64.deb
+```
+
+Then open **Clipo** from the applications menu. Optional OCR uses `tesseract-ocr`
+and language packs; the Debian package recommends the English engine/data.
+
+The portable alternative is `dist/Clipo-0.2.0-x86_64.AppImage`:
+
+```bash
+chmod +x dist/Clipo-0.2.0-x86_64.AppImage
+./dist/Clipo-0.2.0-x86_64.AppImage
+```
+
+If FUSE is unavailable, use `--appimage-extract-and-run`. See the generated
+`dist/build-manifest.json` for checksums and the measured minimum glibc version.
+These artifacts target amd64 Linux; other architectures need their own build.
+
+Uninstall the Debian package with `sudo apt remove clipo`. User history/settings
+are preserved. Login startup is opt-in in Settings. Close minimizes to tray only
+when a tray host is available; otherwise close exits. Quit is available in the
+tray and via the configured quit shortcut.
+
+## What you can do
+
+- Capture text, rich text/HTML, images, URLs, and copied-file URLs on X11.
+- Restore text, HTML, images, and file URLs; paste into your destination app.
+- Search text, OCR results, snippet descriptions, titles, and tags.
+- Filter by type, favorites, pins, collections, and date, including custom ranges.
+- Sort newest, oldest, or most used; browse bounded history pages.
+- Favorite, pin, edit, multi-delete, undo the last 20 individual deletions, or clear
+  history with confirmation. Pinned items survive item-count and age cleanup.
+- Organize with multiple collections/tags; rename, color, and pin collections.
+- View image thumbnails/full images, zoom, copy images, and save PNGs.
+- Save snippets with title, description, language, tags, and syntax coloring.
+  JSON can be validated through formatting, pretty-printed, and minified.
+- Open HTTP(S) links or compose an email through the desktop, on explicit action.
+- Generate QR codes from saved or entered text, including OCR text. Configure
+  correction, size, and colors; copy/print/export PNG or SVG. Large text can be
+  split without truncation. This stays offline and creates no internet link.
+- Extract text from images using installed Tesseract languages, save/copy it,
+  search it, or generate a QR. Automatic OCR is opt-in.
+- Use a searchable quick popup from the main window, tray, or `clipo --quick`.
+- Configure quick access and in-app shortcuts, with X11 global conflict reporting.
+- Pause recording, use persistent private mode, exclude common credential patterns,
+  set literal text/app exclusions, and choose session-only history.
+- Set text limits, history count, expiration, appearance, OCR, and login startup.
+- Export all, selected, or filtered history to JSON/TXT/CSV/HTML. Portable JSON
+  backups include images, tags, snippets, flags, and collection colors/pins.
+- Import validated backups, or schedule local backups (latest seven retained).
+
+There are no seeded entries in normal use. Screenshots use a separate temporary
+history with synthetic examples. No clipboard data is uploaded or executed.
+
+## Wayland and desktop limitations
+
+**Full GNOME/Wayland background capture is not implemented.** A persistent notice
+reports restricted access; only clipboard events actually delivered by Qt are
+recorded. XWayland does not establish compositor-wide access. Use an Ubuntu on
+Xorg session for the implemented background backend. See
+[Qt's clipboard API](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QClipboard.html).
+
+On X11, Clipo registers its quick-popup shortcut natively. On Wayland, assign
+**`clipo --quick`** to a shortcut in your desktop settings. Automatic portal binding
+is not implemented. Other configurable bindings work inside Clipo.
+
+Application exclusions use best-effort X11 active-window identity, not a verified
+clipboard-owner identity. If exclusions are configured and identity is unavailable,
+capture stops with an explanation. Use private mode for sensitive work.
+
+Copied files are stored as references, not archived file contents. Qt's PRIMARY
+selection is not recorded. Content restoration does not inject an automatic
+paste or execute scripts. Arbitrary custom MIME payloads are not preserved.
+
+## Privacy and data
+
+- Persistent database: `$XDG_DATA_HOME/clipo/history.sqlite3`, normally
+  `~/.local/share/clipo/history.sqlite3`; images and QR files live alongside it.
+- Settings: `$XDG_CONFIG_HOME/clipo/settings.json`, normally
+  `~/.config/clipo/settings.json`. App directories use `0700`, private files `0600`.
+- Storage and backups are **unencrypted**. Database encryption is not implemented.
+  Credential detection catches common patterns and password-manager MIME hints;
+  it cannot recognize every secret. Private mode is the reliable recording gate.
+- Pause/private mode persist across restarts. Resuming does not retrospectively
+  ingest text copied while recording was off, or the clipboard present at startup.
+- Turning persistence off opens fresh in-memory SQLite history. Temporary image
+  files are deleted on exit. Previous disk history is preserved and returns when
+  persistence is re-enabled. It is not imported into the session automatically.
+- Deletion is logical, with no claim of forensic secure erasure on SSDs, SQLite
+  journals, backups, or snapshots. Manual exports remain until you remove them.
+- Default text limit: 1 MiB; maximum image: 32 megapixels. Oversized captures are
+  rejected, never silently truncated. Large visible previews are explicitly bounded;
+  copying restores the entire stored content. JSON backup size limit: 128 MiB.
+
+## Development
+
+Python 3.11+ is required. On Ubuntu 24.04+:
+
+```bash
 sudo apt install python3-venv libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[test]'
+.venv/bin/python -m pip install -e '.[test,build]'
 .venv/bin/clipo
 ```
 
-The checked-out project already has a virtual environment with dependencies
-installed in this development workspace. Start it with `.venv/bin/clipo`.
-
-Optional application-menu launcher (run after installing dependencies):
-
-```bash
-.venv/bin/python scripts/install_desktop.py
-```
-
-Then find **Clipo** in Ubuntu's application menu. The launcher points at this
-checkout's virtual environment, so keep this folder in place. Remove the launcher
-with `.venv/bin/python scripts/install_desktop.py --uninstall`; history is preserved.
-This development launcher is not a `.deb` installer. Debian and AppImage packaging
-belong to Phase 6.
-
-To experiment without your regular history or settings:
-
-```bash
-.venv/bin/clipo --data-dir /tmp/clipo-sandbox
-```
-
-## Clipboard compatibility
-
-**X11:** Qt's event-driven clipboard backend is used. An Ubuntu on Xorg session is
-the target for Phase 1 background capture. The PRIMARY selection is intentionally
-not recorded; use explicit Copy / Ctrl+C.
-
-**Wayland (including XWayland):** background capture is **limited and unverified**.
-Clipo displays a persistent warning and only records events delivered by Qt.
-Running with `QT_QPA_PLATFORM=xcb` inside a Wayland session does not establish
-full Wayland clipboard support. No compositor-wide data-control integration is
-implemented yet. The next platform work must evaluate ext-data-control /
-wlr-data-control where available, GNOME-specific integration, and portal
-capabilities. A foreground event is not proof of background monitoring support.
-
-The app does not automatically paste into another application: select an item,
-click **Copy to clipboard** (or press Enter in the list), switch apps, and paste.
-No system-wide keyboard shortcut is registered in this phase.
-
-Qt references: [QClipboard](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QClipboard.html)
-and [QSystemTrayIcon](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html).
-
-## Data and privacy
-
-- History: `$XDG_DATA_HOME/clipo/history.sqlite3`, normally
-  `~/.local/share/clipo/history.sqlite3`.
-- Settings: `$XDG_CONFIG_HOME/clipo/settings.json`, normally
-  `~/.config/clipo/settings.json`.
-- Data/config directories use mode `0700`; database/settings files use `0600`.
-- All supported captured text is stored **unencrypted**. General API-key/password
-  detection and encryption are not implemented yet. Use private mode before
-  copying credentials. Common password-manager MIME hints are skipped, but this
-  cannot identify all sensitive text.
-- Private mode and pause stop new captures. Resuming does not ingest text copied
-  while recording was off. Existing history remains available.
-- The app does not read the preexisting clipboard at startup, upload contents,
-  automatically execute text, or log clipboard contents.
-- Maximum text payload defaults to 1 MiB; oversized text is rejected with a status
-  message and is never truncated in storage. `max_text_bytes` may be changed in
-  the JSON settings within 1 KiB–16 MiB until the advanced settings UI is built.
-- Clear/delete remove records logically. SQLite WAL, backups, SSDs, and filesystem
-  snapshots mean secure erasure is not guaranteed.
-- Images, file lists, and image-bearing MIME data are skipped in Phase 1. Plain
-  text URLs are captured as text; rich formatting is not preserved.
-
-## Tests
+Use `--data-dir /tmp/clipo-sandbox` for isolated history/settings. The optional
+`scripts/install_desktop.py` installs a development launcher pointing at this
+checkout's `.venv`; its `--uninstall` removes only that launcher.
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
+.venv/bin/python scripts/benchmark.py
+.venv/bin/python scripts/preview.py
 ```
 
-Tests use a process-local clipboard or a controlled external-event test double;
-they do not modify your desktop clipboard. Coverage includes storage, exact text
-integrity, limits, literal search, pagination, deletion, persistence, privacy,
-password-manager hints, capability reporting, Qt clipboard restore, and the
-worker-to-window flow. These checks are not a substitute for cross-application
-X11/Wayland tests on Ubuntu. See [the manual checklist](docs/UBUNTU_TESTING.md).
-The full suite passed 26 tests with local Unix sockets permitted; sandboxed
-environments that block them skip the activation test. Native Wayland startup
-and clean shutdown also passed. See [validation evidence](docs/VALIDATION.md).
+The full suite passes **56 tests** in the clean Ubuntu 24.04 container, including
+real Tesseract and single-instance local-socket tests. Restricted environments
+skip unavailable engine/socket checks explicitly. A separate real X11 probe uses
+an isolated Xvfb display, never the user's desktop clipboard.
 
-## Architecture and next steps
-
-See [architecture](docs/ARCHITECTURE.md) and [the roadmap](docs/ROADMAP.md).
-The next phase adds images, favorites, pinning, collections, and tags. QR, OCR,
-snippets, global shortcuts, advanced privacy/search, and distribution follow in
-their specified phases; no nonfunctional controls for those features are shown.
+See [validation](docs/VALIDATION.md), [Ubuntu testing](docs/UBUNTU_TESTING.md),
+[architecture](docs/ARCHITECTURE.md), and [packaging](docs/PACKAGING.md).

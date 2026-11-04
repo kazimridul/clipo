@@ -35,3 +35,20 @@ def test_worker_to_window_restore_search_and_restart(qtbot, qapp, tmp_path):
     repo = HistoryRepository(tmp_path / "data" / "history.sqlite3")
     assert repo.page(HistoryQuery()).total == 1
     repo.close()
+
+
+def test_delete_shortcut_does_not_delete_items_while_typing(qtbot):
+    from clipo.ui.window import MainWindow
+    from clipo.models.item import ClipboardItem, HistoryPage
+    window = MainWindow("Test display")
+    qtbot.addWidget(window)
+    window.show()
+    window.activateWindow()
+    window.show_page(HistoryPage(HistoryQuery(), (ClipboardItem(1, "saved", "hash", "2026-11-04T00:00:00+00:00"),), 1), 0)
+    deleted = []
+    window.delete_requested.connect(deleted.append)
+    window.search.setText("abc")
+    window.search.setCursorPosition(0)
+    window.search.setFocus()
+    qtbot.keyClick(window.search, Qt.Key.Key_Delete)
+    assert window.search.text() == "bc" and not deleted

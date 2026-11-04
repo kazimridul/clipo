@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Clipo
+Comment=Private local clipboard history
+Exec=clipo
+Icon=clipo
+Terminal=false
+Categories=Utility;
+StartupNotify=true

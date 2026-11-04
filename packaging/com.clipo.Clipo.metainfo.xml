@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.clipo.Clipo</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>Clipo</name>
+  <summary>Local clipboard history, QR sharing, and OCR for Linux</summary>
+  <description><p>Keep searchable text and image clipboard history on your own device. Organize clips with collections, generate offline QR codes, and extract text using Tesseract.</p></description>
+  <launchable type="desktop-id">com.clipo.Clipo.desktop</launchable>
+  <url type="homepage">https://github.com/kazimridul/clipo</url>
+  <developer id="io.github.kazimridul"><name>Clipo contributors</name></developer>
+  <content_rating type="oars-1.1"/>
+  <provides><binary>clipo</binary></provides>
+  <categories><category>Utility</category></categories>
+  <releases><release version="0.2.0" date="2026-11-04"/></releases>
+</component>

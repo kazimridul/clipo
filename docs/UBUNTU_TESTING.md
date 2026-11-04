@@ -1,64 +1,64 @@
-# Ubuntu acceptance checklist
+# Ubuntu desktop acceptance checklist
 
-Status: **not executed on a physical/virtual Ubuntu desktop in this workspace**.
-Offscreen automation verifies core logic and Qt wiring, not compositor behavior.
+Automated source, native X11/Xvfb, and Debian install/remove checks pass in a clean
+Ubuntu 24.04 container. The following physical/full-desktop checks remain. Use
+synthetic test content and `clipo --data-dir /tmp/clipo-acceptance`.
 
-Use only disposable test text and a separate data directory. Do not use real
-credentials for these checks.
+## Desktop and clipboard
 
-## Installation and launch
+- [ ] On Ubuntu on Xorg, copy from Firefox, Text Editor, Terminal, and LibreOffice
+      while Clipo is hidden/unfocused. Verify exact text/HTML restoration.
+- [ ] Copy files in Nautilus, restore references, and paste into another directory.
+      Confirm the action copies, does not cut, and missing files are handled by
+      the receiving file manager.
+- [ ] Copy real screenshots, verify thumbnails, zoom, save, and restore pixels.
+- [ ] Close/reopen from tray; test a desktop without a tray host as well.
+- [ ] Run a second instance and `clipo --quick`; verify popup activation and
+      keyboard search, arrows, Enter, and Escape.
+- [ ] Test the X11 global key, a conflicting binding, and changed in-app bindings.
+- [ ] Check scaling at 100%/200%, minimum window sizes, keyboard focus, and a
+      screen reader. Check light/dark/system appearance transitions.
+- [ ] Enable login startup, sign out/in, then disable it and verify reversal.
 
-- [ ] Install on a clean Ubuntu 24.04 or later system using README steps.
-- [ ] Run `clipo --data-dir /tmp/clipo-acceptance` from the virtual environment.
-- [ ] Install the optional development launcher and open Clipo from the app menu.
-- [ ] Launch a second instance with the same data directory: first window opens,
-      no duplicate tray/process remains, no database corruption occurs.
-- [ ] Test dark/light/system themes and a 100% / 200% scaled display.
+## Organization, privacy, data
 
-## Ubuntu on Xorg
+- [ ] Use favorites, pins, multiple collections/tags, colors, collection pins,
+      rename/delete, text edits, and multi-delete/undo.
+- [ ] Exercise all date filters, sorts, snippet description/language editing,
+      syntax coloring, JSON formatting, and large-preview/full-copy behavior.
+- [ ] Verify pause/private state survives restart and resuming does not ingest
+      private clipboard text; test KeePassXC's exclusion MIME hint.
+- [ ] Test app exclusions on X11. Confirm fail-closed behavior when app identity
+      is unavailable; do not treat active-window hints as owner guarantees.
+- [ ] Switch persistence modes, restart, and check prior disk history is preserved
+      while temporary session history disappears.
+- [ ] Confirm unpinned expiration/count cleanup, pin protection, and orphan cleanup.
+- [ ] Export/import real mixed selections/collections, reject malformed imports,
+      and verify manual/scheduled backups and seven-backup retention.
+- [ ] Test full disk, read-only config/data paths, and abrupt process termination.
 
-- [ ] Sign out and select **Ubuntu on Xorg** on the login screen if available.
-- [ ] Copy text from Text Editor, Terminal, and Firefox while Clipo is unfocused.
-- [ ] Each appears once, with correct timestamp and exact content.
-- [ ] Test A→A and A→B→A; verify consecutive duplicate behavior.
-- [ ] Copy multiline, Unicode/Bangla, tabs, and leading/trailing whitespace.
-- [ ] Restore with Enter and the Copy button; paste into another app and compare.
-- [ ] Verify restore does not create another history row.
-- [ ] Search and Today filter work; copy more than 100 items and page both ways.
-- [ ] Set history limit to 3 and verify only newest items remain; set 0 for unlimited.
-- [ ] Restart Clipo and verify saved history and appearance persist.
-- [ ] Where a tray is available, close the window, copy text, reopen from tray,
-      and verify capture continued. Check Quit terminates the process.
-- [ ] Without a tray host, closing the window exits cleanly.
+## QR, OCR, and installation
 
-## Privacy and errors
+- [ ] Scan generated plain/URL/Wi-Fi/Unicode QR codes with physical phone cameras,
+      including multipart sequences. Confirm no content is truncated or uploaded.
+- [ ] Test SVG/PNG exports, copy image/original text, configured colors, and print.
+- [ ] Install English/Bangla OCR data and check eng, ben, and eng+ben on real
+      screenshots; test missing engine/data, failures, and automatic OCR privacy.
+- [ ] Install/remove/reinstall the `.deb` on a real Ubuntu desktop and verify
+      launcher, tray, user history, and optional OCR dependencies.
+- [ ] Run AppImage with and without FUSE; test autostart using its persistent
+      original path. Validate upgrades with a copy of prior-release data.
 
-- [ ] Pause, copy disposable private text, resume: text never appears in history.
-- [ ] Repeat with private mode; restart and verify private mode stays enabled.
-- [ ] Turn private mode off without copying anything new: previous private text
-      does not suddenly appear.
-- [ ] Copy a test password from KeePassXC; verify its history-exclusion MIME hint
-      is honored where provided. Do not assume arbitrary secrets are recognized.
-- [ ] Copy >1 MiB text: warning appears and no truncated record is stored.
-- [ ] Delete an item, cancel clearing, then confirm clearing; current clipboard
-      remains intact while saved records disappear.
-- [ ] Check directory/file permissions; no text contents appear in console logs.
-- [ ] Test an unwritable data directory and malformed settings: startup fails
-      clearly without replacing the existing database.
+## Wayland
 
-## Ubuntu Wayland
+- [ ] Verify the limitation banner remains visible for native Wayland and
+      XWayland. Record foreground/unfocused event behavior without treating it
+      as compositor-wide background access.
+- [ ] Assign `clipo --quick` in desktop keyboard settings and test activation.
+- [ ] Verify text/image/file restoration into native Wayland and XWayland apps.
+- [ ] Do not mark full Wayland capture accepted until a compositor-aware backend
+      is implemented and real cross-app checks pass.
 
-- [ ] Launch in the normal Ubuntu Wayland session; persistent limitation notice
-      appears, with no claim of full background monitoring.
-- [ ] Record which cross-app clipboard events arrive while focused/unfocused.
-- [ ] Repeat using XWayland Qt (`QT_QPA_PLATFORM=xcb`); limitation stays visible.
-- [ ] Verify text restoration and paste work for receiving native Wayland and
-      XWayland apps; document any failures by desktop/Qt version.
-- [ ] Do not mark Wayland background support accepted until a compositor-aware
-      backend has been implemented and these checks pass.
-
-## Evidence to record
-
-Record Ubuntu version, desktop/compositor, session type, Python/Qt versions,
-tray host/extension, each result, and reproduction steps for failures.
-QR/OCR/images/global shortcuts/`.deb` acceptance is deferred to its feature phase.
+Record Ubuntu/desktop/compositor versions, Qt/Python versions, session type, tray
+host, test results, and reproduction steps for failures. Unencrypted storage,
+unimplemented network sharing, and other release gates are listed in ROADMAP.md.

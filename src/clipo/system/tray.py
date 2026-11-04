@@ -7,6 +7,8 @@ class Tray(QSystemTrayIcon):
         self.setToolTip("Clipo · clipboard history")
         menu = QMenu(window)
         menu.addAction("Open Clipo", lambda: self.reveal(window))
+        menu.addAction("Quick clipboard", lambda: window.operation_requested.emit("quick", None))
+        menu.addAction("Generate QR", lambda: window.operation_requested.emit("manual_qr", None))
         self.pause = menu.addAction("Pause capture")
         self.pause.setCheckable(True)
         self.pause.toggled.connect(window.pause_button.setChecked)

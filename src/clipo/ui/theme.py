@@ -22,8 +22,14 @@ def apply_theme(app, preference: str):
         QLabel#notice {{ background: {hover}; padding: 10px; border-radius: 7px; color: {muted}; }}
         QLineEdit, QPlainTextEdit, QSpinBox, QComboBox {{ background: {panel}; border: 1px solid {line}; border-radius: 7px; padding: 9px; selection-background-color: #6754d9; }}
         QLineEdit:focus, QPlainTextEdit:focus {{ border: 1px solid #8d7bea; }}
-        QPushButton {{ background: {panel}; border: 1px solid {line}; border-radius: 7px; padding: 9px 13px; }}
-        QPushButton:hover {{ background: {hover}; }}
+        QPushButton, QToolButton {{ background: {panel}; border: 1px solid {line}; border-radius: 7px; padding: 9px 13px; }}
+        QPushButton:hover, QToolButton:hover {{ background: {hover}; }}
+        QToolButton::menu-indicator {{ width: 0; }}
+        QComboBox::drop-down {{ border: 0; width: 22px; }}
+        QComboBox QAbstractItemView {{ background: {panel}; color: {text}; selection-background-color: {hover}; selection-color: {text}; }}
+        QTabWidget::pane {{ border: 1px solid {line}; background: {panel}; }}
+        QTabBar::tab {{ background: {bg}; padding: 10px; border-bottom: 2px solid transparent; }}
+        QTabBar::tab:selected {{ background: {panel}; border-bottom: 2px solid #8d7bea; }}
         QPushButton:pressed {{ background: #6754d9; color: white; }}
         QPushButton:disabled {{ color: {muted}; }}
         QPushButton#primary {{ background: #6754d9; color: white; border: 0; font-weight: 600; }}
