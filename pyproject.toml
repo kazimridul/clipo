@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipo"
+version = "0.1.0"
+description = "A private, native Linux clipboard manager"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["PySide6>=6.8,<7"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "pytest-qt>=4.4,<5"]
+
+[project.scripts]
+clipo = "clipo.application.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+clipo = ["resources/*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+qt_api = "pyside6"
+

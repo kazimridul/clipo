@@ -1,0 +1,1 @@
+"""Immutable clipboard domain records."""
