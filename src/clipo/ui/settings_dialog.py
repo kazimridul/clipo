@@ -53,7 +53,8 @@ class SettingsDialog(QDialog):
 
         form = page("Privacy")
         self.sensitive = check(settings.block_sensitive)
-        form.addRow("Skip common credential patterns", self.sensitive)
+        form.addRow("Skip common credential patterns (optional)", self.sensitive)
+        note(form, "When enabled, matching credential patterns are skipped. Python variable references and highlighted HTML are handled separately.")
         self.persist = check(settings.persist_history)
         form.addRow("Persist clipboard history", self.persist)
         note(form, "Turning persistence off starts fresh in-memory history. Disk history is preserved. Temporary session image files are removed on exit. " + ("Your persistent vault, images and automatic backups are encrypted." if settings.encrypted else "Storage is unencrypted. Use Library → Encrypt history to migrate it."))
@@ -67,14 +68,14 @@ class SettingsDialog(QDialog):
 
         form = page("Shortcuts")
         self.shortcut = QLineEdit(settings.quick_shortcut)
-        form.addRow("Quick clipboard", self.shortcut)
+        form.addRow("Open Clipo (Meta = Windows/Super)", self.shortcut)
         self.portal = check(settings.portal_shortcut)
         form.addRow("Request Wayland desktop shortcut permission", self.portal)
         self.keys = {}
         for name, value in settings.key_bindings.items():
             self.keys[name] = QKeySequenceEdit(QKeySequence(value))
             form.addRow(name.title(), self.keys[name])
-        note(form, "X11 uses native global binding. On Wayland, enable the desktop portal request above and approve it in your desktop's permission dialog. If unsupported, assign ‘clipo --quick’ manually. Other bindings work inside Clipo.")
+        note(form, "Meta means the Windows/Super key. Ubuntu GNOME registers Meta+V as a desktop launcher and frees it from the notifications shortcut. Other X11 shortcuts use a native global binding. Other Wayland desktops need portal permission or a manual shortcut running ‘clipo’. Other bindings work inside Clipo.")
 
         form = page("OCR")
         self.ocr_language = QLineEdit(settings.ocr_language)

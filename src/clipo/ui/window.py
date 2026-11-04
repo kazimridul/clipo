@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone, time
 from PySide6.QtCore import Qt, QTimer, Signal, QSize
 from PySide6.QtGui import QKeySequence, QShortcut, QIcon
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QButtonGroup, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidgetItem,
     QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QVBoxLayout, QWidget,
     QComboBox, QMenu, QToolButton, QAbstractItemView, QDateEdit, QScrollArea,
 )
@@ -183,7 +183,8 @@ class MainWindow(QMainWindow):
         history = QWidget()
         history_layout = QVBoxLayout(history)
         history_layout.setContentsMargins(0, 0, 13, 0)
-        self.items = QListWidget()
+        from clipo.ui.history_list import HistoryList
+        self.items = HistoryList()
         self.items.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.items.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.items.setIconSize(QSize(72, 54))
@@ -395,6 +396,9 @@ class MainWindow(QMainWindow):
                     entry.setIcon(QIcon(str(path.parent / "thumbnails" / path.name)))
             entry.setData(Qt.ItemDataRole.UserRole, item.id)
             self.items.addItem(entry)
+            from clipo.services.qr import shareable_text
+            if shareable_text(item):
+                self.items.add_qr_action(entry, item.id, lambda item_id: self.operation_requested.emit("qr", item_id))
             if item.id == previous:
                 self.items.setCurrentItem(entry)
         if self.items.currentRow() < 0 and self.items.count():
@@ -437,7 +441,8 @@ class MainWindow(QMainWindow):
         for action in ("json_pretty", "json_minify"):
             self.item_actions[action].setEnabled(item.content_text.strip().startswith(("{", "[")))
         self.item_actions["open_url"].setEnabled(item.content_type in ("url", "email"))
-        self.item_actions["qr"].setEnabled(bool(item.ocr_text) if item.content_type == "image" else bool(item.content_text))
+        from clipo.services.qr import shareable_text
+        self.item_actions["qr"].setEnabled(bool(shareable_text(item)))
         self.item_actions["format_code"].setEnabled(item.language.casefold() in ("python", "sql", "json"))
         # Keep painting responsive with large payloads; restore always uses full storage text.
         self.preview.setPlainText(item.content_text[:50000])

@@ -35,9 +35,9 @@ class Controller(QObject):
         from clipo.system.shortcuts import GlobalShortcut
         self.popup = QuickPopup(self.window)
         self.shortcuts = GlobalShortcut(self)
-        self.shortcuts.activated.connect(self.reveal_quick)
+        self.shortcuts.activated.connect(self.reveal_window)
         self.shortcuts.status.connect(self.window.statusBar().showMessage)
-        self.quick_key = QShortcut(QKeySequence(settings.quick_shortcut), self.window, activated=self.reveal_quick)
+        self.quick_key = QShortcut(QKeySequence(settings.quick_shortcut), self.window, activated=self.reveal_window)
         self.window.setWindowIcon(icon)
         self.monitor = ClipboardMonitor(app.clipboard(), settings.max_text_bytes)
         self.monitor.policy = settings
@@ -202,7 +202,10 @@ class Controller(QObject):
             if path:
                 self.command.emit("export_image", (item.id, path))
         elif purpose == "qr":
-            self.open_qr(item.ocr_text if item.content_type == "image" else item.content_text, item.id)
+            from clipo.services.qr import shareable_text
+            text = shareable_text(item)
+            if text:
+                self.open_qr(text, item.id)
         elif purpose == "ocr":
             self.run_ocr(item)
         elif purpose == "snippet":
@@ -441,6 +444,9 @@ class Controller(QObject):
         if self.locked and message.startswith("History is unavailable"):
             message = "Vault locked. Choose Library → Unlock vault."
         self.window.statusBar().showMessage(message)
+
+    def reveal_window(self):
+        Tray.reveal(self.window)
 
     def reveal_quick(self):
         self.operation("unlock", None) if self.locked else self.popup.reveal()

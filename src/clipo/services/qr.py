@@ -8,6 +8,14 @@ from qrcode.exceptions import DataOverflowError
 from qrcode.image.svg import SvgPathImage
 
 
+def shareable_text(item):
+    """QR codes share text, including code snippets and extracted image text."""
+    if item.content_type == "files":
+        return ""
+    text = item.ocr_text if item.content_type == "image" else item.content_text
+    return text if text.strip() else ""
+
+
 @dataclass(frozen=True)
 class QROptions:
     correction: str = "M"

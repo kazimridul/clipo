@@ -1,32 +1,107 @@
-name: Linux verification and Ubuntu build
-on: [push, pull_request, workflow_dispatch]
+name: Verify, build and release Clipo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clipo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  ubuntu:
+  build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Desktop and OCR dependencies
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Desktop, packaging and OCR dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xauth libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 tesseract-ocr tesseract-ocr-eng
-      - name: Install
+          sudo apt-get install -y binutils dpkg-dev appstream xvfb xauth dbus-daemon libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 tesseract-ocr tesseract-ocr-eng
+      - name: Install Python dependencies
         run: python -m pip install -e '.[test,build]'
-      - name: Tests
-        run: QT_QPA_PLATFORM=offscreen python -m pytest -q
-      - name: Source engine diagnostics
-        run: clipo --self-test
-      - name: Real cross-process X11 probe
+      - name: Tests and source diagnostics
+        run: |
+          QT_QPA_PLATFORM=offscreen python -m pytest -q
+          clipo --self-test
+          python -c 'import tomllib, clipo; assert tomllib.load(open("pyproject.toml", "rb"))["project"]["version"] == clipo.__version__'
+      - name: Cross-process X11 probe
         run: xvfb-run -a env -u WAYLAND_DISPLAY QT_QPA_PLATFORM=xcb XDG_SESSION_TYPE=x11 CLIPO_ISOLATED_DISPLAY=1 python scripts/probe_x11.py
-      - name: Build Ubuntu 24.04 Debian package
-        run: python scripts/package_linux.py
-      - name: Frozen engine diagnostics
-        run: dist/clipo/clipo --self-test
+      - name: Fetch and verify pinned AppImage tools
+        run: python scripts/fetch_appimage_tools.py "$RUNNER_TEMP/clipo-tools"
+      - name: Build Debian package and AppImage
+        run: python scripts/package_linux.py --appimagetool "$RUNNER_TEMP/clipo-tools/appimagetool" --runtime "$RUNNER_TEMP/clipo-tools/runtime"
+      - name: Verify packaged app
+        run: |
+          dist/clipo/clipo --self-test
+          python scripts/smoke_binary.py "$PWD/dist/clipo/clipo"
+          dist/Clipo-*-x86_64.AppImage --appimage-extract-and-run --self-test
+          sudo apt-get install -y ./dist/clipo_*_amd64.deb
+          /usr/bin/clipo --self-test
+          python scripts/smoke_binary.py /usr/bin/clipo
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum ./*.deb ./*.AppImage build-manifest.json > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: clipo-ubuntu-24.04
+          name: clipo-ubuntu-24.04-amd64
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
           path: |
             dist/*.deb
+            dist/*.AppImage
             dist/build-manifest.json
+            dist/SHA256SUMS
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: clipo-ubuntu-24.04-amd64
+          path: release-assets
+      - name: Publish release with notes and installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(python3 -c 'import json; print(json.load(open("release-assets/build-manifest.json"))["version"])')
+          TAG="v${VERSION}+build.${GITHUB_RUN_NUMBER}"
+          if gh release view "$TAG" --json isDraft > release-state.json 2>/dev/null; then
+            if [ "$(python3 -c 'import json; print(json.load(open("release-state.json"))["isDraft"])')" = "False" ]; then
+              echo "Release $TAG is already published; leaving it unchanged."
+              exit 0
+            fi
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            cat > release-notes.md <<'NOTES'
+          Ubuntu 24.04+ amd64 build. Python and Qt are included.
+
+          Download the `.deb` installer or portable `.AppImage`. Use `SHA256SUMS`
+          to verify downloads; `build-manifest.json` records the build environment.
+
+          The source archives are available below alongside the installers.
+          NOTES
+            gh release create "$TAG" release-assets/* --draft --target "$GITHUB_SHA" --title "Clipo ${VERSION} · build ${GITHUB_RUN_NUMBER}" --generate-notes --notes-file release-notes.md
+          fi
+          gh release edit "$TAG" --draft=false --prerelease=false --latest

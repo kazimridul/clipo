@@ -20,6 +20,54 @@ def test_sensitive_detection_and_literal_exclusions():
     assert excluded_application("org.keepassxc.KeePassXC", "*keepass*")
 
 
+def test_constructor_variable_assignment_is_not_a_credential():
+    snippet = '''    def __init__(self, path: Path, history_limit: int, max_text_bytes: int, settings=None, password=None):
+        super().__init__()
+        self.path = path
+        self.history_limit = history_limit
+        self.max_text_bytes = max_text_bytes
+        self.repository = None
+        self.password = password
+        from clipo.config.settings import Settings
+        from dataclasses import replace
+        self.settings = replace(settings) if settings else Settings()
+'''
+    assert not excluded_text(snippet)
+    assert excluded_text(snippet, patterns="self.password")
+    assert excluded_text(snippet + '\napi_key=abcdefghijklmnopqrstuvwxyz')
+
+
+@pytest.mark.parametrize("text", [
+    'self.password = "actual-password-value"',
+    'self.password = actualpasswordvalue',
+    'self.password = password12345',
+    'password=password',
+    'self.password = password; api_key=abcdefghijklmnopqrstuvwxyz',
+    'self.password = password # api_key=abcdefghijklmnopqrstuvwxyz',
+    'self.password = password + "actual-password-value"',
+])
+def test_variable_assignment_exception_keeps_credential_detection(text):
+    assert excluded_text(text)
+
+
+@pytest.mark.parametrize("text", [
+    'connect(password=self.password)',
+    'password = settings.password',
+    'if self.password:\n    self.settings.save(path)',
+    'def connect(password: Optional[str] = None):\n    pass',
+    '# বাংলা 👋\nconnect(password=self.password)',
+])
+def test_python_references_and_control_flow_are_not_credentials(text):
+    assert not excluded_text(text)
+
+
+def test_complete_worker_source_can_be_saved():
+    # The reported 18 KB VS Code selection is this exact source file.
+    text = (Path(__file__).parents[1] / 'src/clipo/core/worker.py').read_text()
+    assert not excluded_text(text)
+    assert excluded_text(text + '\npassword="actual-password-value"')
+
+
 def test_json_roundtrip_including_images_flags_tags_and_html(tmp_path):
     source = HistoryRepository(tmp_path / "source/history.sqlite3")
     source.add_payload("hello বাংলা", "text", 0, content_html="<b>hello বাংলা</b>")

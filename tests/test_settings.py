@@ -5,6 +5,11 @@ import pytest
 from clipo.config.settings import Settings, xdg_path
 
 
+def test_new_install_defaults():
+    assert Settings().max_text_bytes == 8 * 1024 * 1024
+    assert Settings().quick_shortcut == "Meta+V"
+
+
 def test_settings_roundtrip_and_permissions(tmp_path):
     path = tmp_path / "config" / "settings.json"
     settings = Settings(theme="dark", history_limit=0, paused=True, private=True)

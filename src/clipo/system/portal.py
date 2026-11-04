@@ -75,7 +75,7 @@ class PortalShortcut(QThread):
             result = await request(interface.call_create_session, [])
             session = result['session_handle'].value
             preferred = self.shortcut.replace('Ctrl', 'CTRL').replace('Shift', 'SHIFT').replace('Alt', 'ALT').replace('Meta', 'LOGO')
-            result = await request(interface.call_bind_shortcuts, [session, [['quick', {'description': Variant('s', 'Open Clipo quick clipboard'), 'preferred_trigger': Variant('s', preferred)}]], ''])
+            result = await request(interface.call_bind_shortcuts, [session, [['quick', {'description': Variant('s', 'Open Clipo'), 'preferred_trigger': Variant('s', preferred)}]], ''])
             shortcuts = result.get('shortcuts')
             if not shortcuts or not shortcuts.value:
                 raise ValueError('The desktop did not bind a shortcut. Configure clipo --quick manually.')

@@ -3,7 +3,12 @@
 A native Linux clipboard manager built with Python, PySide6 / Qt 6, SQLite,
 Pillow, qrcode, Pygments, and optional local Tesseract OCR. Ubuntu comes first.
 
-**Version 0.3.0 — Ubuntu release candidate.** Includes native X11 capture,
+**Version 0.3.5 — Ubuntu release candidate.** Fixes the database worker's duplicate
+text/HTML filtering using a shared capture policy, with regression tests through
+the real Qt worker thread and database.
+Defaults to an 8 MiB text limit and
+Super+V to open Clipo. QR sharing buttons appear only for supported text, including
+code snippets and OCR text. Includes native X11 capture,
 optional GNOME Wayland background integration, encrypted history, OCR/QR tools,
 and explicit one-time phone sharing. See [release status](docs/ROADMAP.md) for
 verified integration coverage and remaining hardware/manual checks.
@@ -12,17 +17,24 @@ verified integration coverage and remaining hardware/manual checks.
 
 ## Install on Ubuntu
 
-The release artifacts are built from an isolated **Ubuntu 24.04 amd64** environment.
+The local 0.3.5 test build targets **Ubuntu 25.10 amd64** and requires glibc 2.42
+or newer. GitHub Actions release builds target **Ubuntu 24.04+ amd64**.
 Python and Qt are bundled; users do not need Python commands to launch the app.
 
 ```bash
-sudo apt install ./dist/clipo_0.3.0_amd64.deb
+sudo apt install ./dist/clipo_0.3.5_amd64.deb
 ```
 
 Then open **Clipo** from the applications menu. Optional OCR uses `tesseract-ocr`
 and language packs; the Debian package recommends the English engine/data.
 
-The portable alternative is `dist/Clipo-0.3.0-x86_64.AppImage`:
+To test the latest standalone build without installing it, run:
+
+```bash
+./dist/clipo/clipo
+```
+
+The older portable release is `dist/Clipo-0.3.0-x86_64.AppImage`:
 
 ```bash
 chmod +x dist/Clipo-0.3.0-x86_64.AppImage
@@ -91,10 +103,27 @@ heartbeat stops. Real background capture tests pass on isolated GNOME 49. Versio
 Other Wayland compositors require their own backend; Qt/XWayland alone is not a
 compositor-wide clipboard manager. See [integration details](docs/WAYLAND.md).
 
-On X11 the quick shortcut registers natively. On Wayland enable **Settings →
-Shortcuts → Request Wayland desktop shortcut permission**, then approve the desktop
-permission dialog. Unsupported/denied portals report a clear fallback: assign
-`clipo --quick` in desktop settings. Other configurable bindings work inside Clipo.
+**Super+V (Windows key + V)** opens Clipo. On Ubuntu GNOME it registers a persistent
+desktop launcher and removes Super+V from GNOME's notifications binding, preserving
+other notification and custom shortcuts. A conflicting custom Super+V binding is
+reported without replacing it. Other X11 shortcuts register natively. Other Wayland
+desktops can use **Settings → Shortcuts → Request Wayland desktop shortcut permission**
+or assign `clipo` manually. Existing saved shortcut and size preferences are retained;
+new profiles default to Meta+V and 8 MiB. Other bindings work inside Clipo.
+
+## Automatic GitHub releases
+
+Pull requests targeting `main` run tests, native X11 checks and Ubuntu 24.04 builds.
+Every successful push/merge to `main` also publishes a GitHub release with generated
+change notes, a Debian installer, AppImage, build manifest and `SHA256SUMS`. GitHub
+includes source archives. Builds run directly on GitHub's Ubuntu runners without Docker.
+
+Tags use `v<version>+build.<workflow-run-number>` so each main build gets a unique
+release even if the application version has not changed. Re-running a published
+build leaves that release untouched. Releases are drafted until assets finish uploading.
+The workflow uses the repository's `GITHUB_TOKEN`; it needs no personal token.
+Push these workflow changes to GitHub to activate them. Manual workflow runs build
+test artifacts without publishing a release.
 
 Application exclusions use active-window hints on X11/the GNOME bridge, not
 verified clipboard-owner identity. Unknown identities are skipped when exclusions
@@ -126,7 +155,7 @@ paste or execute scripts. Arbitrary custom MIME payloads are not preserved.
   persistence is re-enabled. It is not imported into the session automatically.
 - Deletion is logical, with no claim of forensic secure erasure on SSDs, SQLite
   journals, backups, or snapshots. Manual exports remain until you remove them.
-- Default text limit: 1 MiB; maximum image: 32 megapixels. Oversized captures are
+- Default text limit: 8 MiB; maximum image: 32 megapixels. Oversized captures are
   rejected, never silently truncated. Large visible previews are explicitly bounded;
   copying restores the entire stored content. JSON backup size limit: 128 MiB.
 

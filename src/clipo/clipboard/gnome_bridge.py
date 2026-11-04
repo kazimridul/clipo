@@ -5,7 +5,7 @@ import os
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import QObject, Signal, Slot, ClassInfo, QTimer
 from PySide6.QtDBus import QDBusConnection
-from clipo.security.policy import excluded_application, excluded_text
+from clipo.security.policy import excluded_application, excluded_payload
 
 SERVICE = "com.clipo.Clipboard"
 OBJECT = "/com/clipo/Clipboard"
@@ -64,7 +64,10 @@ class GnomeBridge(QObject):
                 if not isinstance(text, str) or not isinstance(html, str) or len(text.encode()) + len(html.encode()) > self.monitor.max_text_bytes:
                     raise ValueError()
                 policy = self.monitor.policy
-                if policy and excluded_text(text + html, policy.block_sensitive, policy.excluded_patterns):
+                # VS Code includes highlighted HTML. Appending it to Python source
+                # makes valid code unparsable and defeats reference recognition.
+                if policy and excluded_payload(text, html, policy.block_sensitive, policy.excluded_patterns):
+                    self.error.emit("Sensitive or excluded text was not saved. Check Settings → Privacy if this is unexpected.")
                     return False
                 if kind == "files":
                     urls = [line for line in text.splitlines() if line and not line.startswith("#")]

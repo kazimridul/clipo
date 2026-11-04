@@ -102,8 +102,8 @@ class HistoryWorker(QObject):
                         if image.width * image.height > 32_000_000:
                             raise ValueError("Clipboard image exceeds 32 megapixels")
                     payload = {"image": QImage.fromData(payload["encoded_image"])}
-                from clipo.security.policy import excluded_text
-                if "image" not in payload and excluded_text(payload.get("text", "") + payload.get("html", ""), self.settings.block_sensitive, self.settings.excluded_patterns):
+                from clipo.security.policy import excluded_payload
+                if "image" not in payload and excluded_payload(payload.get("text", ""), payload.get("html", ""), self.settings.block_sensitive, self.settings.excluded_patterns):
                     self.error.emit("Sensitive or excluded content was not saved.")
                     return
                 from clipo.services.images import store_image

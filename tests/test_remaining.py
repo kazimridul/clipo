@@ -23,7 +23,7 @@ def test_bridge_enforces_privacy_validation_and_limits(qtbot):
     from clipo.config.settings import Settings
     from test_clipboard import ExternalClipboard
     monitor = ClipboardMonitor(ExternalClipboard(), 1024)
-    monitor.policy = Settings()
+    monitor.policy = Settings(block_sensitive=True)
     monitor.enabled = True
     bridge = GnomeBridge(monitor)
     assert not bridge.available  # Offscreen tests do not claim a live desktop's service.
@@ -44,6 +44,39 @@ def test_bridge_enforces_privacy_validation_and_limits(qtbot):
         assert received[-1] == {"kind": "text", "text": "https://ubuntu.com"}
     finally:
         bridge.close()
+
+
+def test_vscode_python_and_highlighted_html_reach_storage(qtbot, tmp_path):
+    from html import escape
+    from pathlib import Path
+    from clipo.clipboard.gnome_bridge import GnomeBridge
+    from clipo.clipboard.monitor import ClipboardMonitor
+    from clipo.config.settings import Settings
+    from clipo.core.worker import HistoryWorker
+    from test_clipboard import ExternalClipboard
+    text = (Path(__file__).parent / 'fixtures/vscode_worker.txt').read_text()
+    html = '<pre>' + escape(text) + '</pre>'
+    monitor = ClipboardMonitor(ExternalClipboard(), 8 * 1024 * 1024)
+    monitor.policy = Settings(block_sensitive=True)
+    monitor.enabled = True
+    bridge = GnomeBridge(monitor)
+    worker = HistoryWorker(tmp_path / 'history.sqlite3', 100, 8 * 1024 * 1024, monitor.policy)
+    assert worker.initialize()
+    errors = []
+    worker.error.connect(errors.append)
+    bridge.payload.connect(lambda payload: worker.execute('payload', payload))
+    try:
+        assert bridge.Ingest(json.dumps({'kind': 'text', 'text': text, 'html': html, 'source': 'Code'}))
+        assert not errors
+        item = worker.repository.get(1)
+        assert item.content_text == text and item.content_html == html
+        with qtbot.waitSignal(bridge.error):
+            assert not bridge.Ingest(json.dumps({'kind': 'text', 'text': 'password="actual-password-value"', 'source': 'Code'}))
+        # Strong credential signatures in HTML remain protected too.
+        assert not bridge.Ingest(json.dumps({'kind': 'text', 'text': 'hello', 'html': 'Authorization: Bearer secret-token', 'source': 'Code'}))
+    finally:
+        bridge.close()
+        worker.close()
 
 
 def test_tls_share_requires_explicit_receipt_is_one_time_and_escapes_content():

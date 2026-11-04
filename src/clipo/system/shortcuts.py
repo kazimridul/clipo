@@ -29,6 +29,14 @@ class GlobalShortcut(QObject):
     def bind(self, shortcut, platform, use_portal=False):
         self.close()
         key, mask = parse_shortcut(shortcut)
+        if platform not in ("offscreen", "minimal") and os.environ.get("CLIPO_ISOLATED_DISPLAY") != "1" and "gnome" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower() and mask == 64 and key.lower() == "v":
+            try:
+                from clipo.system.gnome_shortcut import install_super_v
+                install_super_v()
+                self.status.emit("Super+V opens Clipo · desktop shortcut active")
+            except Exception as error:
+                self.status.emit(str(error) if isinstance(error, ValueError) else "Could not register Super+V. Assign ‘clipo’ in Ubuntu Keyboard Settings.")
+            return
         if platform != "xcb" or os.environ.get("XDG_SESSION_TYPE") == "wayland" or os.environ.get("WAYLAND_DISPLAY"):
             if use_portal and platform not in ("offscreen", "minimal"):
                 from clipo.system.portal import PortalShortcut
@@ -37,7 +45,7 @@ class GlobalShortcut(QObject):
                 self.portal.status.connect(self.status)
                 self.portal.start()
                 return
-            self.status.emit("Global shortcut: configure your desktop to run ‘clipo --quick’. In-app shortcut is available.")
+            self.status.emit("Global shortcut: configure your desktop to run ‘clipo’. In-app shortcut is available.")
             return
         try:
             from Xlib import X, XK, display

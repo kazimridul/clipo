@@ -26,6 +26,8 @@ def apply_theme(app, preference: str):
         QPushButton, QToolButton {{ background: {panel}; border: 1px solid {line}; border-radius: 7px; padding: 9px 13px; }}
         QPushButton:hover, QToolButton:hover {{ background: {hover}; }}
         QToolButton::menu-indicator {{ width: 0; }}
+        QToolButton#rowQr {{ background: transparent; border: 0; padding: 7px; border-radius: 7px; }}
+        QToolButton#rowQr:hover, QToolButton#rowQr:focus {{ background: {hover}; border: 1px solid #8b75d9; padding: 6px; }}
         QComboBox::drop-down {{ border: 0; width: 22px; }}
         QComboBox QAbstractItemView {{ background: {panel}; color: {text}; selection-background-color: {hover}; selection-color: {text}; }}
         QTabWidget::pane {{ border: 1px solid {line}; background: {panel}; }}

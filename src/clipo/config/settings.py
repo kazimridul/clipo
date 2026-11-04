@@ -19,11 +19,11 @@ def private_directory(path: Path) -> Path:
 @dataclass
 class Settings:
     history_limit: int = 1000  # Zero means unlimited.
-    max_text_bytes: int = 1024 * 1024
+    max_text_bytes: int = 8 * 1024 * 1024
     theme: str = "system"
     paused: bool = False
     private: bool = False
-    quick_shortcut: str = "Ctrl+Shift+V"
+    quick_shortcut: str = "Meta+V"
     auto_ocr: bool = False
     ocr_language: str = "eng"
     block_sensitive: bool = True
